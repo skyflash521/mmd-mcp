@@ -3,6 +3,22 @@ project(mmd_mcp)
 
 set(CMAKE_CXX_STANDARD 20)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG v0.18.7
+)
+
+FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+
+FetchContent_MakeAvailable(httplib json)
+
 if(DEFINED ENV{DXSDK_DIR})
     set(DXSDK_DIR "$ENV{DXSDK_DIR}")
 else()
@@ -28,6 +44,8 @@ target_link_libraries(mmd_mcp PRIVATE
     MMDPlugin/MMDPlugin
     "${DXSDK_DIR}/Lib/x64/d3dx9.lib"
     "${DXSDK_DIR}/Lib/x64/d3d9.lib"
+    httplib
+    nlohmann_json::nlohmann_json
 )
 
 set(MMD_PLUGIN_DIR "" CACHE PATH "MMDプラグインのデプロイ先ディレクトリ")
