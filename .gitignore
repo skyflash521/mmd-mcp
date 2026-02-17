@@ -1,0 +1,20 @@
+# ビルド成果物
+build/
+cmake-build-*/
+*.obj
+*.o
+*.dll
+*.lib
+*.exp
+*.ilk
+*.pdb
+*.exe
+
+# 外部ライブラリ
+!lib/**
+
+# ローカル設定
+CMakeUserPresets.json
+
+# IDE
+.vscode/
