@@ -49,6 +49,10 @@ target_link_libraries(mmd_mcp PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+add_executable(test_mcp test_mcp.cpp mcp_server.cpp)
+target_compile_definitions(test_mcp PRIVATE WIN32_LEAN_AND_MEAN)
+target_link_libraries(test_mcp PRIVATE httplib nlohmann_json::nlohmann_json)
+
 set(MMD_PLUGIN_DIR "" CACHE PATH "MMDプラグインのデプロイ先ディレクトリ")
 
 if(MMD_PLUGIN_DIR)
