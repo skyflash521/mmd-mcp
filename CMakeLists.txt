@@ -25,9 +25,10 @@ else()
     set(DXSDK_DIR "C:/Program Files (x86)/Microsoft DirectX SDK (June 2010)")
 endif()
 
-add_library(mmd_mcp SHARED main.cpp)
+add_library(mmd_mcp SHARED main.cpp mcp_server.cpp)
 
 target_compile_definitions(mmd_mcp PRIVATE
+    WIN32_LEAN_AND_MEAN
     _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
     _HAS_DEPRECATED_RESULT_OF=1
     _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING
