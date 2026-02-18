@@ -38,6 +38,12 @@ void McpServer::registerTool(std::unique_ptr<ITool> tool) {
 }
 
 McpServer::McpServer(int port) : port_(port) {
+    server_.set_logger([](const httplib::Request& req, const httplib::Response& res) {
+        std::string msg = "mmd_mcp: " + req.method + " " + req.path +
+                          " -> " + std::to_string(res.status) + "\n";
+        OutputDebugStringA(msg.c_str());
+    });
+
     server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(R"({"status":"ok"})", "application/json");
     });
@@ -45,6 +51,7 @@ McpServer::McpServer(int port) : port_(port) {
     server_.Post("/mcp", [this](const httplib::Request& req, httplib::Response& res) {
         handleMcp(req, res);
     });
+
 }
 
 void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
@@ -67,7 +74,9 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
     auto id = body.contains("id") ? body["id"] : json(nullptr);
 
     if (method == "initialize") {
-        session_id_ = generateSessionId();
+        if (session_id_.empty()) {
+            session_id_ = generateSessionId();
+        }
         res.set_header("MCP-Session-Id", session_id_);
 
         json result = {

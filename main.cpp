@@ -6,6 +6,8 @@
 #include "mmd_plugin.h"
 #include "mcp_server.h"
 #include "tools/ping_tool.h"
+#include "tools/frame/frame_accessor.h"
+#include "tools/frame/frame_tool.h"
 
 class MyPlugin : public MMDPluginDLL4 {
 public:
@@ -15,6 +17,8 @@ public:
 
     void start() override {
         server_.registerTool(std::make_unique<PingTool>());
+        server_.registerTool(std::make_unique<GetFrameTool>(&provider_));
+        server_.registerTool(std::make_unique<SetFrameTool>(&provider_));
         server_.start();
     }
 
@@ -23,6 +27,7 @@ public:
     }
 
 private:
+    MmdFrameAccessor provider_;
     McpServer server_;
 };
 

@@ -1,5 +1,7 @@
 #include "mcp_server.h"
 #include "tools/ping_tool.h"
+#include "tests/mock_frame.h"
+#include "tools/frame/frame_tool.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -32,6 +34,18 @@ static void test_initialize() {
     printf("  PASS: initialize\n");
 }
 
+static void test_reinitialize_keeps_session() {
+    auto res = cli.Post("/mcp",
+        R"({"jsonrpc":"2.0","id":99,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})",
+        "application/json");
+    assert(res && res->status == 200);
+
+    auto newSessionId = res->get_header_value("MCP-Session-Id");
+    assert(newSessionId == sessionId);
+
+    printf("  PASS: reinitialize keeps session\n");
+}
+
 static void test_initialized_notification() {
     httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
     auto res = cli.Post("/mcp", headers,
@@ -51,10 +65,21 @@ static void test_tools_list() {
 
     auto body = json::parse(res->body);
     auto& tools = body["result"]["tools"];
-    assert(tools.is_array() && tools.size() >= 1);
-    assert(tools[0]["name"] == "ping");
-    assert(tools[0]["description"].is_string());
-    assert(tools[0]["inputSchema"].is_object());
+    assert(tools.is_array() && tools.size() >= 3);
+
+    auto findTool = [&](const std::string& name) -> const json* {
+        for (auto& t : tools) {
+            if (t["name"] == name) return &t;
+        }
+        return nullptr;
+    };
+
+    for (const auto& name : {"ping", "get_frame", "set_frame"}) {
+        auto* t = findTool(name);
+        assert(t != nullptr);
+        assert((*t)["description"].is_string());
+        assert((*t)["inputSchema"].is_object());
+    }
 
     printf("  PASS: tools/list\n");
 }
@@ -180,9 +205,58 @@ static void test_not_initialized_fresh() {
     printf("  PASS: not initialized (400)\n");
 }
 
+static MockFrameReader g_reader;
+static MockFrameWriter g_writer;
+
+static void test_tools_call_get_frame() {
+    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
+    auto res = cli.Post("/mcp", headers,
+        R"({"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"get_frame","arguments":{}}})",
+        "application/json");
+    assert(res && res->status == 200);
+
+    auto body = json::parse(res->body);
+    assert(body["result"]["isError"] == false);
+    assert(body["result"]["content"][0]["text"] == "42");
+
+    printf("  PASS: tools/call get_frame\n");
+}
+
+static void test_tools_call_set_frame() {
+    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
+    auto res = cli.Post("/mcp", headers,
+        R"({"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":100}}})",
+        "application/json");
+    assert(res && res->status == 200);
+
+    auto body = json::parse(res->body);
+    assert(body["result"]["isError"] == false);
+    assert(body["result"]["content"][0]["text"] == "Frame set to 100");
+    assert(g_writer.written() == 100);
+
+    printf("  PASS: tools/call set_frame\n");
+}
+
+static void test_tools_call_set_frame_negative() {
+    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
+    auto res = cli.Post("/mcp", headers,
+        R"({"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":-1}}})",
+        "application/json");
+    assert(res && res->status == 200);
+
+    auto body = json::parse(res->body);
+    assert(body["result"]["isError"] == true);
+
+    printf("  PASS: tools/call set_frame negative\n");
+}
+
 int main() {
+    g_reader.set(42);
+
     McpServer server(TEST_PORT);
     server.registerTool(std::make_unique<PingTool>());
+    server.registerTool(std::make_unique<GetFrameTool>(&g_reader));
+    server.registerTool(std::make_unique<SetFrameTool>(&g_writer));
     server.start();
     for (int i = 0; i < 50; ++i) {
         auto r = cli.Get("/");
@@ -193,6 +267,7 @@ int main() {
     printf("Running MCP tests...\n");
 
     test_initialize();
+    test_reinitialize_keeps_session();
     test_initialized_notification();
     test_tools_list();
     test_tools_call_ping();
@@ -204,9 +279,12 @@ int main() {
     test_parse_error();
     test_invalid_request();
     test_not_initialized_fresh();
+    test_tools_call_get_frame();
+    test_tools_call_set_frame();
+    test_tools_call_set_frame_negative();
 
     server.stop();
 
-    printf("All %d tests passed.\n", 12);
+    printf("All %d tests passed.\n", 16);
     return 0;
 }

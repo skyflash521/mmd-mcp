@@ -35,6 +35,7 @@ target_compile_definitions(mmd_mcp PRIVATE
 )
 
 target_include_directories(mmd_mcp PRIVATE
+    "${PROJECT_SOURCE_DIR}"
     "${PROJECT_SOURCE_DIR}/include"
     "${DXSDK_DIR}/Include"
 )
@@ -49,9 +50,15 @@ target_link_libraries(mmd_mcp PRIVATE
     nlohmann_json::nlohmann_json
 )
 
-add_executable(test_mcp test_mcp.cpp mcp_server.cpp)
-target_compile_definitions(test_mcp PRIVATE WIN32_LEAN_AND_MEAN)
+add_executable(test_mcp tests/test_mcp.cpp mcp_server.cpp)
+target_compile_definitions(test_mcp PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
+target_include_directories(test_mcp PRIVATE "${PROJECT_SOURCE_DIR}")
 target_link_libraries(test_mcp PRIVATE httplib nlohmann_json::nlohmann_json)
+
+add_executable(test_frame_tools tests/test_frame_tools.cpp)
+target_compile_definitions(test_frame_tools PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
+target_include_directories(test_frame_tools PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(test_frame_tools PRIVATE nlohmann_json::nlohmann_json)
 
 set(MMD_PLUGIN_DIR "" CACHE PATH "MMDプラグインのデプロイ先ディレクトリ")
 
