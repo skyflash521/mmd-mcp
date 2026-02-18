@@ -1,4 +1,5 @@
 #include "mcp_server.h"
+#include "tools/ping_tool.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -181,6 +182,7 @@ static void test_not_initialized_fresh() {
 
 int main() {
     McpServer server(TEST_PORT);
+    server.registerTool(std::make_unique<PingTool>());
     server.start();
     for (int i = 0; i < 50; ++i) {
         auto r = cli.Get("/");

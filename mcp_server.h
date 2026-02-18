@@ -1,13 +1,17 @@
 #pragma once
 
+#include "tool.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <string>
+#include <vector>
+#include <memory>
 
 class McpServer {
 public:
     McpServer(int port = 3939);
+    void registerTool(std::unique_ptr<ITool> tool);
     void start();
     void stop();
 
@@ -19,4 +23,5 @@ private:
     int port_;
     bool running_ = false;
     std::string session_id_;
+    std::vector<std::unique_ptr<ITool>> tools_;
 };

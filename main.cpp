@@ -5,6 +5,7 @@
 
 #include "mmd_plugin.h"
 #include "mcp_server.h"
+#include "tools/ping_tool.h"
 
 class MyPlugin : public MMDPluginDLL4 {
 public:
@@ -13,6 +14,7 @@ public:
     }
 
     void start() override {
+        server_.registerTool(std::make_unique<PingTool>());
         server_.start();
     }
 

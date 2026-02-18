@@ -29,6 +29,14 @@ static json makeError(const json& id, int code, const std::string& message) {
     return {{"jsonrpc", "2.0"}, {"id", id}, {"error", {{"code", code}, {"message", message}}}};
 }
 
+void McpServer::registerTool(std::unique_ptr<ITool> tool) {
+    auto toolName = tool->name();
+    for (auto& t : tools_) {
+        if (t->name() == toolName) return;
+    }
+    tools_.push_back(std::move(tool));
+}
+
 McpServer::McpServer(int port) : port_(port) {
     server_.Get("/", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(R"({"status":"ok"})", "application/json");
@@ -90,13 +98,14 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
     }
 
     if (method == "tools/list") {
-        json tools = json::array({
-            {
-                {"name", "ping"},
-                {"description", "Check server connectivity"},
-                {"inputSchema", {{"type", "object"}, {"properties", json::object()}}}
-            }
-        });
+        json tools = json::array();
+        for (auto& tool : tools_) {
+            tools.push_back({
+                {"name", tool->name()},
+                {"description", tool->description()},
+                {"inputSchema", tool->inputSchema()}
+            });
+        }
         res.set_content(makeResponse(id, {{"tools", tools}}).dump(), "application/json");
         return;
     }
@@ -107,13 +116,17 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
             return;
         }
         auto toolName = body["params"].value("name", "");
-        if (toolName == "ping") {
-            json result = {
-                {"content", json::array({{{"type", "text"}, {"text", "pong"}}})},
-                {"isError", false}
-            };
-            res.set_content(makeResponse(id, result).dump(), "application/json");
+        if (body["params"].contains("arguments") && !body["params"]["arguments"].is_object()) {
+            res.set_content(makeError(id, -32602, "Invalid arguments").dump(), "application/json");
             return;
+        }
+        auto args = body["params"].value("arguments", json::object());
+        for (auto& tool : tools_) {
+            if (tool->name() == toolName) {
+                json result = tool->execute(args);
+                res.set_content(makeResponse(id, result).dump(), "application/json");
+                return;
+            }
         }
         res.set_content(makeError(id, -32602, "Unknown tool: " + toolName).dump(), "application/json");
         return;
