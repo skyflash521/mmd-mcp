@@ -1,25 +1,7 @@
 #include "mcp_server.h"
 #include <windows.h>
-#include <random>
-#include <sstream>
-#include <iomanip>
 
 using json = nlohmann::json;
-
-static std::string generateSessionId() {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<uint32_t> dist(0, 0xFFFFFFFF);
-
-    std::ostringstream ss;
-    ss << std::hex << std::setfill('0');
-    ss << std::setw(8) << dist(gen) << "-";
-    ss << std::setw(4) << (dist(gen) & 0xFFFF) << "-";
-    ss << std::setw(4) << ((dist(gen) & 0x0FFF) | 0x4000) << "-";
-    ss << std::setw(4) << ((dist(gen) & 0x3FFF) | 0x8000) << "-";
-    ss << std::setw(8) << dist(gen) << std::setw(4) << (dist(gen) & 0xFFFF);
-    return ss.str();
-}
 
 static json makeResponse(const json& id, const json& result) {
     return {{"jsonrpc", "2.0"}, {"id", id}, {"result", result}};
@@ -48,6 +30,11 @@ McpServer::McpServer(int port) : port_(port) {
         res.set_content(R"({"status":"ok"})", "application/json");
     });
 
+    server_.Get("/mcp", [](const httplib::Request&, httplib::Response& res) {
+        res.status = 405;
+        res.set_header("Allow", "POST");
+    });
+
     server_.Post("/mcp", [this](const httplib::Request& req, httplib::Response& res) {
         handleMcp(req, res);
     });
@@ -74,30 +61,12 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
     auto id = body.contains("id") ? body["id"] : json(nullptr);
 
     if (method == "initialize") {
-        if (session_id_.empty()) {
-            session_id_ = generateSessionId();
-        }
-        res.set_header("MCP-Session-Id", session_id_);
-
         json result = {
             {"protocolVersion", "2025-11-25"},
             {"capabilities", {{"tools", json::object()}}},
             {"serverInfo", {{"name", "mmd-mcp"}, {"version", "0.1.0"}}}
         };
         res.set_content(makeResponse(id, result).dump(), "application/json");
-        return;
-    }
-
-    // initialize以外はセッションIDの検証
-    if (session_id_.empty()) {
-        res.status = 400;
-        res.set_content(makeError(id, -32600, "Not initialized").dump(), "application/json");
-        return;
-    }
-    auto it = req.headers.find("MCP-Session-Id");
-    if (it == req.headers.end() || it->second != session_id_) {
-        res.status = 400;
-        res.set_content(makeError(id, -32600, "Invalid session").dump(), "application/json");
         return;
     }
 

@@ -13,7 +13,6 @@ using json = nlohmann::json;
 
 static const int TEST_PORT = 13939;
 static httplib::Client cli("127.0.0.1", TEST_PORT);
-static std::string sessionId;
 
 static void test_initialize() {
     auto res = cli.Post("/mcp",
@@ -28,27 +27,11 @@ static void test_initialize() {
     assert(body["result"]["serverInfo"]["name"] == "mmd-mcp");
     assert(body["result"]["capabilities"].contains("tools"));
 
-    sessionId = res->get_header_value("MCP-Session-Id");
-    assert(!sessionId.empty());
-
     printf("  PASS: initialize\n");
 }
 
-static void test_reinitialize_keeps_session() {
-    auto res = cli.Post("/mcp",
-        R"({"jsonrpc":"2.0","id":99,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}})",
-        "application/json");
-    assert(res && res->status == 200);
-
-    auto newSessionId = res->get_header_value("MCP-Session-Id");
-    assert(newSessionId == sessionId);
-
-    printf("  PASS: reinitialize keeps session\n");
-}
-
 static void test_initialized_notification() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","method":"notifications/initialized"})",
         "application/json");
     assert(res && res->status == 202);
@@ -57,8 +40,7 @@ static void test_initialized_notification() {
 }
 
 static void test_tools_list() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})",
         "application/json");
     assert(res && res->status == 200);
@@ -85,8 +67,7 @@ static void test_tools_list() {
 }
 
 static void test_tools_call_ping() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ping","arguments":{}}})",
         "application/json");
     assert(res && res->status == 200);
@@ -100,8 +81,7 @@ static void test_tools_call_ping() {
 }
 
 static void test_tools_call_unknown() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"nonexistent","arguments":{}}})",
         "application/json");
     assert(res && res->status == 200);
@@ -114,8 +94,7 @@ static void test_tools_call_unknown() {
 }
 
 static void test_method_not_found() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":5,"method":"unknown/method"})",
         "application/json");
     assert(res && res->status == 200);
@@ -126,32 +105,8 @@ static void test_method_not_found() {
     printf("  PASS: method not found\n");
 }
 
-static void test_invalid_session() {
-    httplib::Headers headers = {{"MCP-Session-Id", "invalid-session-id"}};
-    auto res = cli.Post("/mcp", headers,
-        R"({"jsonrpc":"2.0","id":6,"method":"tools/list"})",
-        "application/json");
-    assert(res && res->status == 400);
-
-    printf("  PASS: invalid session\n");
-}
-
-static void test_not_initialized() {
-    // MCP-Session-Id header absent, session exists
-    auto res = cli.Post("/mcp",
-        R"({"jsonrpc":"2.0","id":7,"method":"tools/list"})",
-        "application/json");
-    assert(res && res->status == 400);
-
-    auto body = json::parse(res->body);
-    assert(body["error"]["code"] == -32600);
-
-    printf("  PASS: missing session header\n");
-}
-
 static void test_invalid_params() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":8,"method":"tools/call"})",
         "application/json");
     assert(res && res->status == 200);
@@ -182,35 +137,11 @@ static void test_invalid_request() {
     printf("  PASS: invalid request (non-object JSON)\n");
 }
 
-static void test_not_initialized_fresh() {
-    // 新しいサーバーで初期化前にリクエスト
-    McpServer server2(TEST_PORT + 1);
-    server2.start();
-    httplib::Client cli2("127.0.0.1", TEST_PORT + 1);
-    for (int i = 0; i < 50; ++i) {
-        auto r = cli2.Get("/");
-        if (r && r->status == 200) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-
-    auto res = cli2.Post("/mcp",
-        R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})",
-        "application/json");
-    assert(res && res->status == 400);
-
-    auto body = json::parse(res->body);
-    assert(body["error"]["code"] == -32600);
-
-    server2.stop();
-    printf("  PASS: not initialized (400)\n");
-}
-
 static MockFrameReader g_reader;
 static MockFrameWriter g_writer;
 
 static void test_tools_call_get_frame() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"get_frame","arguments":{}}})",
         "application/json");
     assert(res && res->status == 200);
@@ -223,8 +154,7 @@ static void test_tools_call_get_frame() {
 }
 
 static void test_tools_call_set_frame() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":100}}})",
         "application/json");
     assert(res && res->status == 200);
@@ -238,8 +168,7 @@ static void test_tools_call_set_frame() {
 }
 
 static void test_tools_call_set_frame_negative() {
-    httplib::Headers headers = {{"MCP-Session-Id", sessionId}};
-    auto res = cli.Post("/mcp", headers,
+    auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":-1}}})",
         "application/json");
     assert(res && res->status == 200);
@@ -267,24 +196,20 @@ int main() {
     printf("Running MCP tests...\n");
 
     test_initialize();
-    test_reinitialize_keeps_session();
     test_initialized_notification();
     test_tools_list();
     test_tools_call_ping();
     test_tools_call_unknown();
     test_method_not_found();
-    test_invalid_session();
-    test_not_initialized();
     test_invalid_params();
     test_parse_error();
     test_invalid_request();
-    test_not_initialized_fresh();
     test_tools_call_get_frame();
     test_tools_call_set_frame();
     test_tools_call_set_frame_negative();
 
     server.stop();
 
-    printf("All %d tests passed.\n", 16);
+    printf("All %d tests passed.\n", 12);
     return 0;
 }

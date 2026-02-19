@@ -22,6 +22,5 @@ private:
     std::thread server_thread_;
     int port_;
     bool running_ = false;
-    std::string session_id_;
     std::vector<std::unique_ptr<ITool>> tools_;
 };
