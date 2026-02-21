@@ -154,14 +154,14 @@ static void test_invalid_request() {
 
 // MCP-Protocol-Versionヘッダ検証テスト
 static void test_missing_protocol_version_header() {
-    // ヘッダなしでtools/listを呼ぶ → 400
+    // ヘッダなしでtools/listを呼ぶ → 欠落時はスキップ（仕様上SHOULD）なので200
     auto res = cli.Post("/mcp",
         R"({"jsonrpc":"2.0","id":10,"method":"tools/list"})",
         "application/json");
-    assert(res && res->status == 400);
+    assert(res && res->status == 200);
 
     auto body = json::parse(res->body);
-    assert(body["error"]["code"] == -32600);
+    assert(body.contains("result"));
 
     ++g_passed; printf("  PASS: missing protocol version header\n");
 }

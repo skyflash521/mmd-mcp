@@ -62,7 +62,7 @@ cmake --build build --target deploy
 - MCPエンドポイントで `POST` を受理すること（MUST）。
 - `GET` で `text/event-stream` を提供しない場合は `405 Method Not Allowed` を返すこと（MUST）。
 - 通知/レスポンス入力を受理した場合は `202 Accepted`（ボディなし）を返すこと（MUST）。
-- `MCP-Protocol-Version` が無効または非対応の場合は `400` を返すこと（MUST）。
+- `MCP-Protocol-Version` が無効値または非対応値の場合は `400` を返すこと（MUST）。ヘッダ欠落時の `400` は SHOULD（後方互換のため緩和可）。
 - セッション管理を採用する場合、終了済みセッションID付き要求に `404` を返すこと（MUST）。
 
 ### 5. セキュリティ（HTTP）

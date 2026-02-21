@@ -103,14 +103,7 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
     // （ここに来る時点でinitialize済み。通知はヘッダ不要）
     if (!isNotification) {
         auto it = req.headers.find("MCP-Protocol-Version");
-        if (it == req.headers.end()) {
-            res.status = 400;
-            res.set_content(
-                makeError(id, -32600, "Missing MCP-Protocol-Version header").dump(),
-                "application/json");
-            return;
-        }
-        if (it->second != PROTOCOL_VERSION) {
+        if (it != req.headers.end() && it->second != PROTOCOL_VERSION) {
             res.status = 400;
             res.set_content(
                 makeError(id, -32600,
