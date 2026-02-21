@@ -66,7 +66,7 @@ static void test_get_single_frame() {
     assert(kf["position"]["x"] == 1.0f);
     assert(kf["distance"] == -45.0f);
     assert(kf["fov"] == 30);
-    assert(kf["perspective"] == true);
+    assert(kf["perspective"] == false);
     assert(kf["interpolation"]["x"]["x1"] == 20);
 
     ++g_passed; printf("  PASS: get single frame\n");
@@ -135,7 +135,7 @@ static void test_create_success() {
     assert(kf->xyz.z == 30.0f);
     assert(kf->length == -50.0f);
     assert(kf->view_angle == 45);
-    assert(kf->is_perspective == 0);
+    assert(kf->is_perspective == 1);
 
     ++g_passed; printf("  PASS: create success\n");
 }

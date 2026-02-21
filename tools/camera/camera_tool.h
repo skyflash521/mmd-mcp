@@ -29,7 +29,7 @@ static nlohmann::json keyframeToJson(const mmp::CameraKeyFrameData& kf, int fram
         {"rotation", {{"x", kf.rxyz.x}, {"y", kf.rxyz.y}, {"z", kf.rxyz.z}}},
         {"distance", kf.length},
         {"fov", kf.view_angle},
-        {"perspective", kf.is_perspective != 0},
+        {"perspective", kf.is_perspective == 0},
         {"selected", kf.is_selected != 0},
         {"look_at_model", kf.looking_model_index},
         {"look_at_bone", kf.looking_bone_index},
@@ -92,7 +92,7 @@ static void applyJson(mmp::CameraKeyFrameData& kf, const nlohmann::json& j) {
     if (j.contains("fov") && j["fov"].is_number_integer())
         kf.view_angle = j["fov"].get<int>();
     if (j.contains("perspective") && j["perspective"].is_boolean())
-        kf.is_perspective = j["perspective"].get<bool>() ? 1 : 0;
+        kf.is_perspective = j["perspective"].get<bool>() ? 0 : 1;
     if (j.contains("selected") && j["selected"].is_boolean())
         kf.is_selected = j["selected"].get<bool>() ? 1 : 0;
     if (j.contains("look_at_model") && j["look_at_model"].is_number_integer())
