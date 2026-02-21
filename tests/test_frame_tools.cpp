@@ -6,6 +6,8 @@
 
 using json = nlohmann::json;
 
+static int g_passed = 0;
+
 static void test_get_frame() {
     MockFrameReader reader;
     reader.set(42);
@@ -15,7 +17,7 @@ static void test_get_frame() {
     assert(result["isError"] == false);
     assert(result["content"][0]["text"] == "42");
 
-    printf("  PASS: get_frame\n");
+    ++g_passed; printf("  PASS: get_frame\n");
 }
 
 static void test_set_frame() {
@@ -27,7 +29,7 @@ static void test_set_frame() {
     assert(result["content"][0]["text"] == "Frame set to 100");
     assert(writer.written() == 100);
 
-    printf("  PASS: set_frame\n");
+    ++g_passed; printf("  PASS: set_frame\n");
 }
 
 static void test_set_frame_missing_arg() {
@@ -37,7 +39,7 @@ static void test_set_frame_missing_arg() {
     auto result = tool.execute(json::object());
     assert(result["isError"] == true);
 
-    printf("  PASS: set_frame missing arg\n");
+    ++g_passed; printf("  PASS: set_frame missing arg\n");
 }
 
 static void test_set_frame_invalid_type() {
@@ -47,7 +49,7 @@ static void test_set_frame_invalid_type() {
     auto result = tool.execute({{"frame", "not a number"}});
     assert(result["isError"] == true);
 
-    printf("  PASS: set_frame invalid type\n");
+    ++g_passed; printf("  PASS: set_frame invalid type\n");
 }
 
 static void test_get_frame_no_provider() {
@@ -56,7 +58,7 @@ static void test_get_frame_no_provider() {
     auto result = tool.execute(json::object());
     assert(result["isError"] == true);
 
-    printf("  PASS: get_frame no provider\n");
+    ++g_passed; printf("  PASS: get_frame no provider\n");
 }
 
 static void test_set_frame_no_provider() {
@@ -65,7 +67,7 @@ static void test_set_frame_no_provider() {
     auto result = tool.execute({{"frame", 0}});
     assert(result["isError"] == true);
 
-    printf("  PASS: set_frame no provider\n");
+    ++g_passed; printf("  PASS: set_frame no provider\n");
 }
 
 static void test_get_frame_failure() {
@@ -76,7 +78,7 @@ static void test_get_frame_failure() {
     auto result = tool.execute(json::object());
     assert(result["isError"] == true);
 
-    printf("  PASS: get_frame failure\n");
+    ++g_passed; printf("  PASS: get_frame failure\n");
 }
 
 static void test_set_frame_negative() {
@@ -86,7 +88,7 @@ static void test_set_frame_negative() {
     auto result = tool.execute({{"frame", -5}});
     assert(result["isError"] == true);
 
-    printf("  PASS: set_frame negative\n");
+    ++g_passed; printf("  PASS: set_frame negative\n");
 }
 
 int main() {
@@ -101,6 +103,6 @@ int main() {
     test_get_frame_failure();
     test_set_frame_negative();
 
-    printf("All %d tests passed.\n", 8);
+    printf("All %d tests passed.\n", g_passed);
     return 0;
 }

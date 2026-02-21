@@ -8,6 +8,12 @@
 #include "tools/ping_tool.h"
 #include "tools/frame/frame_accessor.h"
 #include "tools/frame/frame_tool.h"
+#include "tools/camera/camera_accessor.h"
+#include "tools/camera/camera_tool.h"
+#ifdef MMD_MCP_DEBUG
+#include "tools/debug/dump_camera_region_tool.h"
+#include "tools/debug/enumerate_controls_tool.h"
+#endif
 
 class MyPlugin : public MMDPluginDLL4 {
 public:
@@ -17,8 +23,16 @@ public:
 
     void start() override {
         server_.registerTool(std::make_unique<PingTool>());
-        server_.registerTool(std::make_unique<GetFrameTool>(&provider_));
-        server_.registerTool(std::make_unique<SetFrameTool>(&provider_));
+        server_.registerTool(std::make_unique<GetFrameTool>(&frame_accessor_));
+        server_.registerTool(std::make_unique<SetFrameTool>(&frame_accessor_));
+        server_.registerTool(std::make_unique<GetCameraKeyframesTool>(&camera_accessor_));
+        server_.registerTool(std::make_unique<CreateCameraKeyframesTool>(&camera_accessor_));
+        server_.registerTool(std::make_unique<UpdateCameraKeyframesTool>(&camera_accessor_));
+        server_.registerTool(std::make_unique<DeleteCameraKeyframesTool>(&camera_accessor_));
+#ifdef MMD_MCP_DEBUG
+        server_.registerTool(std::make_unique<DumpCameraRegionTool>());
+        server_.registerTool(std::make_unique<EnumerateControlsTool>());
+#endif
         server_.start();
     }
 
@@ -27,7 +41,8 @@ public:
     }
 
 private:
-    MmdFrameAccessor provider_;
+    MmdFrameAccessor frame_accessor_;
+    MmdCameraAccessor camera_accessor_;
     McpServer server_;
 };
 

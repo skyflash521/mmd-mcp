@@ -27,11 +27,14 @@ endif()
 
 add_library(mmd_mcp SHARED main.cpp mcp_server.cpp)
 
+option(MMD_MCP_DEBUG "Enable debug tools (dump_camera_region etc.)" OFF)
+
 target_compile_definitions(mmd_mcp PRIVATE
     WIN32_LEAN_AND_MEAN
     _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
     _HAS_DEPRECATED_RESULT_OF=1
     _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING
+    $<$<BOOL:${MMD_MCP_DEBUG}>:MMD_MCP_DEBUG>
 )
 
 target_include_directories(mmd_mcp PRIVATE
@@ -59,6 +62,21 @@ add_executable(test_frame_tools tests/test_frame_tools.cpp)
 target_compile_definitions(test_frame_tools PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
 target_include_directories(test_frame_tools PRIVATE "${PROJECT_SOURCE_DIR}")
 target_link_libraries(test_frame_tools PRIVATE nlohmann_json::nlohmann_json)
+
+add_executable(test_camera_tools tests/test_camera_tools.cpp)
+target_compile_definitions(test_camera_tools PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
+target_include_directories(test_camera_tools PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(test_camera_tools PRIVATE nlohmann_json::nlohmann_json)
+
+add_executable(test_integration tests/test_integration.cpp)
+target_compile_definitions(test_integration PRIVATE WIN32_LEAN_AND_MEAN)
+target_include_directories(test_integration PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(test_integration PRIVATE httplib nlohmann_json::nlohmann_json)
+
+add_executable(test_common tests/test_common.cpp)
+target_compile_definitions(test_common PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
+target_include_directories(test_common PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(test_common PRIVATE nlohmann_json::nlohmann_json)
 
 set(MMD_PLUGIN_DIR "" CACHE PATH "MMDプラグインのデプロイ先ディレクトリ")
 

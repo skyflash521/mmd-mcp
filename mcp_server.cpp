@@ -3,6 +3,8 @@
 
 using json = nlohmann::json;
 
+static constexpr const char* PROTOCOL_VERSION = "2025-11-25";
+
 static json makeResponse(const json& id, const json& result) {
     return {{"jsonrpc", "2.0"}, {"id", id}, {"result", result}};
 }
@@ -42,6 +44,16 @@ McpServer::McpServer(int port) : port_(port) {
 }
 
 void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
+    // Origin検証: ブラウザからのクロスオリジンリクエストを拒否
+    auto origin = req.headers.find("Origin");
+    if (origin != req.headers.end()) {
+        res.status = 403;
+        res.set_content(
+            makeError(nullptr, -32600, "Forbidden: Origin header not allowed").dump(),
+            "application/json");
+        return;
+    }
+
     json body;
     try {
         body = json::parse(req.body);
@@ -51,26 +63,65 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
         return;
     }
 
-    if (!body.is_object()) {
+    if (!body.is_object() || body.value("jsonrpc", "") != "2.0") {
         res.status = 400;
         res.set_content(makeError(nullptr, -32600, "Invalid Request").dump(), "application/json");
         return;
     }
 
     auto method = body.value("method", "");
+    bool isNotification = !body.contains("id");
     auto id = body.contains("id") ? body["id"] : json(nullptr);
 
     if (method == "initialize") {
         json result = {
-            {"protocolVersion", "2025-11-25"},
+            {"protocolVersion", PROTOCOL_VERSION},
             {"capabilities", {{"tools", json::object()}}},
-            {"serverInfo", {{"name", "mmd-mcp"}, {"version", "0.1.0"}}}
+            {"serverInfo", {{"name", "mmd-mcp"}, {"version", "0.1.0"}}},
+            {"instructions",
+                "MCP server for MikuMikuDance (MMD). "
+                "Provides tools to read/write MMD's internal state via direct memory access. "
+                "Use tools/list for full tool definitions and input schemas.\n\n"
+                "Available tools:\n"
+                "- ping: Check server connectivity\n"
+                "- get_frame / set_frame: Read or change the current frame number\n"
+                "- get_camera_keyframes: Read camera keyframe data with optional frame range filter\n"
+                "- create_camera_keyframes: Create new camera keyframes (fails if already exists)\n"
+                "- update_camera_keyframes: Partial-update existing camera keyframes\n"
+                "- delete_camera_keyframes: Delete camera keyframes (frame 0 cannot be deleted)\n\n"
+                "Units: rotation values are in radians (e.g. 0.1745 rad = 10 degrees). "
+                "Position and distance are in MMD internal units.\n\n"
+                "Frame range syntax: \"0\" (single), \"1-10\" (range), \"1-3,5,8-10\" (mixed). "
+                "Frame 0 is the base keyframe and cannot be deleted."
+            }
         };
         res.set_content(makeResponse(id, result).dump(), "application/json");
         return;
     }
 
-    if (method == "notifications/initialized") {
+    // initialize以降のリクエストはMCP-Protocol-Versionヘッダを検証
+    // （ここに来る時点でinitialize済み。通知はヘッダ不要）
+    if (!isNotification) {
+        auto it = req.headers.find("MCP-Protocol-Version");
+        if (it == req.headers.end()) {
+            res.status = 400;
+            res.set_content(
+                makeError(id, -32600, "Missing MCP-Protocol-Version header").dump(),
+                "application/json");
+            return;
+        }
+        if (it->second != PROTOCOL_VERSION) {
+            res.status = 400;
+            res.set_content(
+                makeError(id, -32600,
+                    "Unsupported protocol version: " + it->second).dump(),
+                "application/json");
+            return;
+        }
+    }
+
+    // 通知（idなし）は202で受理。notifications/initialized以外の未知通知も受理。
+    if (isNotification) {
         res.status = 202;
         return;
     }

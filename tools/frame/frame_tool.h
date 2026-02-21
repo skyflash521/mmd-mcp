@@ -12,7 +12,7 @@ public:
     std::string description() const override { return "Get the current frame number"; }
 
     nlohmann::json inputSchema() const override {
-        return {{"type", "object"}, {"properties", nlohmann::json::object()}};
+        return {{"type", "object"}, {"properties", nlohmann::json::object()}, {"additionalProperties", false}};
     }
 
     nlohmann::json execute(const nlohmann::json&) override {
