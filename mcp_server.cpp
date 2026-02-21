@@ -74,6 +74,11 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
     auto id = body.contains("id") ? body["id"] : json(nullptr);
 
     if (method == "initialize") {
+        std::string toolList;
+        for (auto& tool : tools_) {
+            toolList += "- " + tool->name() + ": " + tool->description() + "\n";
+        }
+
         json result = {
             {"protocolVersion", PROTOCOL_VERSION},
             {"capabilities", {{"tools", json::object()}}},
@@ -82,13 +87,7 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
                 "MCP server for MikuMikuDance (MMD). "
                 "Provides tools to read/write MMD's internal state via direct memory access. "
                 "Use tools/list for full tool definitions and input schemas.\n\n"
-                "Available tools:\n"
-                "- ping: Check server connectivity\n"
-                "- get_frame / set_frame: Read or change the current frame number\n"
-                "- get_camera_keyframes: Read camera keyframe data with optional frame range filter\n"
-                "- create_camera_keyframes: Create new camera keyframes (fails if already exists)\n"
-                "- update_camera_keyframes: Partial-update existing camera keyframes\n"
-                "- delete_camera_keyframes: Delete camera keyframes (frame 0 cannot be deleted)\n\n"
+                "Available tools:\n" + toolList + "\n"
                 "Units: rotation values are in radians (e.g. 0.1745 rad = 10 degrees). "
                 "Position and distance are in MMD internal units.\n\n"
                 "Frame range syntax: \"0\" (single), \"1-10\" (range), \"1-3,5,8-10\" (mixed). "

@@ -248,7 +248,13 @@ public:
         : accessor_(accessor) {}
 
     std::string name() const override { return "create_camera_keyframes"; }
-    std::string description() const override { return "Create new camera keyframes. Fails if keyframe already exists at the specified frame."; }
+    std::string description() const override {
+        return "Create new camera keyframes. Fails if keyframe already exists at the specified frame. "
+               "Recommended defaults: distance=-45.0, fov=30, perspective=true, "
+               "position={x:0,y:10,z:0}, rotation={x:0,y:0,z:0}, "
+               "look_at_model=-1 (no follow), look_at_bone=0, "
+               "interpolation: all channels {x1:20,y1:20,x2:107,y2:107} (linear).";
+    }
 
     nlohmann::json inputSchema() const override {
         using json = nlohmann::json;
