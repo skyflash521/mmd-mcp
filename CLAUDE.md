@@ -8,6 +8,7 @@
 - MCPのツール定義（name, description, エラーメッセージ等）は英語で記述すること
 - ユーザーの指示が技術的に誤っている可能性がある場合、安易に実行せず先に指摘・確認すること
 - コミット前にメッセージをテキストで提示し、承認を得てから実行すること
+- コミットメッセージは `git diff` / `git status` の実際の差分のみに基づいて作成すること。直近の作業記憶や会話の文脈に引きずられず、差分に存在しない変更を含めないこと
 
 ## ビルド
 
@@ -35,6 +36,7 @@ cmake --build build --target deploy
 
 - MMDPluginヘッダ (`include/mmd_plugin.h`) は変更しないこと。プロジェクト設定で対応する
 - MMDPluginヘッダがC++20で削除された `std::result_of_t` を使用するため、CMakeLists.txtで `_HAS_DEPRECATED_RESULT_OF=1` を定義して復活させている
+- PMX関連の機能を実装する際は `docs/PMX仕様.txt`（極北P作成の公式仕様書）を参照すること
 
 ## MCP仕様準拠（MUST）
 
