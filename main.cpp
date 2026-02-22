@@ -6,8 +6,8 @@
 #include "mmd_plugin.h"
 #include "mcp_server.h"
 #include "tools/ping_tool.h"
-#include "tools/frame/frame_accessor.h"
-#include "tools/frame/frame_tool.h"
+#include "tools/timeline/timeline_accessor.h"
+#include "tools/timeline/timeline_tool.h"
 #include "tools/camera/camera_accessor.h"
 #include "tools/camera/camera_tool.h"
 #ifdef MMD_MCP_DEBUG
@@ -23,8 +23,8 @@ public:
 
     void start() override {
         server_.registerTool(std::make_unique<PingTool>());
-        server_.registerTool(std::make_unique<GetFrameTool>(&frame_accessor_));
-        server_.registerTool(std::make_unique<SetFrameTool>(&frame_accessor_));
+        server_.registerTool(std::make_unique<GetCurrentFrameTool>(&timeline_accessor_));
+        server_.registerTool(std::make_unique<SetCurrentFrameTool>(&timeline_accessor_));
         server_.registerTool(std::make_unique<GetCameraKeyframesTool>(&camera_accessor_));
         server_.registerTool(std::make_unique<CreateCameraKeyframesTool>(&camera_accessor_));
         server_.registerTool(std::make_unique<UpdateCameraKeyframesTool>(&camera_accessor_));
@@ -41,7 +41,7 @@ public:
     }
 
 private:
-    MmdFrameAccessor frame_accessor_;
+    MmdTimelineAccessor timeline_accessor_;
     MmdCameraAccessor camera_accessor_;
     McpServer server_;
 };

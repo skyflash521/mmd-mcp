@@ -1,15 +1,15 @@
 #pragma once
 
-#include "tools/frame/frame_accessor.h"
+#include "tools/timeline/timeline_accessor.h"
 
-class MockFrameReader : public IFrameReader {
+class MockCurrentFrameReader : public ICurrentFrameReader {
     int frame_ = 0;
 public:
     void set(int f) { frame_ = f; }
     int getFrame() const override { return frame_; }
 };
 
-class MockFrameWriter : public IFrameWriter {
+class MockCurrentFrameWriter : public ICurrentFrameWriter {
     int frame_ = -1;
 public:
     int written() const { return frame_; }

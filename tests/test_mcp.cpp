@@ -1,7 +1,8 @@
+#include "tests/test_common_setup.h"
 #include "mcp_server.h"
 #include "tools/ping_tool.h"
-#include "tests/mock_frame.h"
-#include "tools/frame/frame_tool.h"
+#include "tests/mock_timeline.h"
+#include "tools/timeline/timeline_tool.h"
 #include "tests/mock_camera.h"
 #include "tools/camera/camera_tool.h"
 #include <httplib.h>
@@ -67,7 +68,7 @@ static void test_tools_list() {
         return nullptr;
     };
 
-    for (const auto& name : {"ping", "get_frame", "set_frame",
+    for (const auto& name : {"ping", "get_current_frame", "set_current_frame",
          "get_camera_keyframes", "create_camera_keyframes",
          "update_camera_keyframes", "delete_camera_keyframes"}) {
         auto* t = findTool(name);
@@ -79,7 +80,7 @@ static void test_tools_list() {
     // パラメータなしツールのadditionalProperties検証
     auto* ping = findTool("ping");
     assert((*ping)["inputSchema"]["additionalProperties"] == false);
-    auto* getFrame = findTool("get_frame");
+    auto* getFrame = findTool("get_current_frame");
     assert((*getFrame)["inputSchema"]["additionalProperties"] == false);
 
     ++g_passed; printf("  PASS: tools/list\n");
@@ -236,25 +237,25 @@ static void test_jsonrpc_field_required() {
     ++g_passed; printf("  PASS: jsonrpc field required\n");
 }
 
-static MockFrameReader g_reader;
-static MockFrameWriter g_writer;
+static MockCurrentFrameReader g_reader;
+static MockCurrentFrameWriter g_writer;
 static MockCameraAccessor g_cam_accessor;
 
-static void test_tools_call_get_frame() {
+static void test_tools_call_get_current_frame() {
     auto res = mcpPost(
-        R"({"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"get_frame","arguments":{}}})");
+        R"({"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"get_current_frame","arguments":{}}})");
     assert(res && res->status == 200);
 
     auto body = json::parse(res->body);
     assert(body["result"]["isError"] == false);
     assert(body["result"]["content"][0]["text"] == "42");
 
-    ++g_passed; printf("  PASS: tools/call get_frame\n");
+    ++g_passed; printf("  PASS: tools/call get_current_frame\n");
 }
 
-static void test_tools_call_set_frame() {
+static void test_tools_call_set_current_frame() {
     auto res = mcpPost(
-        R"({"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":100}}})");
+        R"({"jsonrpc":"2.0","id":21,"method":"tools/call","params":{"name":"set_current_frame","arguments":{"frame":100}}})");
     assert(res && res->status == 200);
 
     auto body = json::parse(res->body);
@@ -262,18 +263,18 @@ static void test_tools_call_set_frame() {
     assert(body["result"]["content"][0]["text"] == "Frame set to 100");
     assert(g_writer.written() == 100);
 
-    ++g_passed; printf("  PASS: tools/call set_frame\n");
+    ++g_passed; printf("  PASS: tools/call set_current_frame\n");
 }
 
-static void test_tools_call_set_frame_negative() {
+static void test_tools_call_set_current_frame_negative() {
     auto res = mcpPost(
-        R"({"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"set_frame","arguments":{"frame":-1}}})");
+        R"({"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"set_current_frame","arguments":{"frame":-1}}})");
     assert(res && res->status == 200);
 
     auto body = json::parse(res->body);
     assert(body["result"]["isError"] == true);
 
-    ++g_passed; printf("  PASS: tools/call set_frame negative\n");
+    ++g_passed; printf("  PASS: tools/call set_current_frame negative\n");
 }
 
 static void test_tools_call_get_camera_keyframes() {
@@ -309,6 +310,7 @@ static void test_tools_call_update_camera_keyframes() {
 }
 
 int main() {
+    suppressWindowsDialogs();
     g_reader.set(42);
 
     mmp::CameraKeyFrameData camKf{};
@@ -321,8 +323,8 @@ int main() {
     McpServer server(TEST_PORT);
     server.registerTool(std::make_unique<PingTool>());
     server.registerTool(std::make_unique<PingTool>());  // 二重登録テスト用
-    server.registerTool(std::make_unique<GetFrameTool>(&g_reader));
-    server.registerTool(std::make_unique<SetFrameTool>(&g_writer));
+    server.registerTool(std::make_unique<GetCurrentFrameTool>(&g_reader));
+    server.registerTool(std::make_unique<SetCurrentFrameTool>(&g_writer));
     server.registerTool(std::make_unique<GetCameraKeyframesTool>(&g_cam_accessor));
     server.registerTool(std::make_unique<CreateCameraKeyframesTool>(&g_cam_accessor));
     server.registerTool(std::make_unique<UpdateCameraKeyframesTool>(&g_cam_accessor));
@@ -361,9 +363,9 @@ int main() {
     test_invalid_request();
     test_tools_call_arguments_must_be_object();
     test_jsonrpc_field_required();
-    test_tools_call_get_frame();
-    test_tools_call_set_frame();
-    test_tools_call_set_frame_negative();
+    test_tools_call_get_current_frame();
+    test_tools_call_set_current_frame();
+    test_tools_call_set_current_frame_negative();
     test_tools_call_get_camera_keyframes();
     test_tools_call_update_camera_keyframes();
 

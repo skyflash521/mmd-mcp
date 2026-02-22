@@ -1,14 +1,14 @@
 #pragma once
 
 #include "tool.h"
-#include "tools/frame/frame_accessor.h"
+#include "tools/timeline/timeline_accessor.h"
 #include <string>
 
-class GetFrameTool : public ITool {
+class GetCurrentFrameTool : public ITool {
 public:
-    explicit GetFrameTool(IFrameReader* reader) : reader_(reader) {}
+    explicit GetCurrentFrameTool(ICurrentFrameReader* reader) : reader_(reader) {}
 
-    std::string name() const override { return "get_frame"; }
+    std::string name() const override { return "get_current_frame"; }
     std::string description() const override { return "Get the current frame number"; }
 
     nlohmann::json inputSchema() const override {
@@ -36,14 +36,14 @@ public:
     }
 
 private:
-    IFrameReader* reader_;
+    ICurrentFrameReader* reader_;
 };
 
-class SetFrameTool : public ITool {
+class SetCurrentFrameTool : public ITool {
 public:
-    explicit SetFrameTool(IFrameWriter* writer) : writer_(writer) {}
+    explicit SetCurrentFrameTool(ICurrentFrameWriter* writer) : writer_(writer) {}
 
-    std::string name() const override { return "set_frame"; }
+    std::string name() const override { return "set_current_frame"; }
     std::string description() const override { return "Set the current frame number"; }
 
     nlohmann::json inputSchema() const override {
@@ -84,5 +84,5 @@ public:
     }
 
 private:
-    IFrameWriter* writer_;
+    ICurrentFrameWriter* writer_;
 };

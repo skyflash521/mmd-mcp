@@ -1,6 +1,7 @@
 // MMD結合テスト: MMDが起動中・プラグインロード済みの状態で実行する
 // localhost:3939 にHTTPリクエストを送り、カメラキーフレームCRUDの動作を検証する
 
+#include "tests/test_common_setup.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -262,6 +263,39 @@ static void test_delete_not_exists(httplib::Client& cli) {
     ++g_passed; printf("  PASS: delete not exists\n");
 }
 
+// --- タイムラインテスト ---
+
+static void test_get_current_frame(httplib::Client& cli) {
+    auto result = callTool(cli, "get_current_frame");
+    assert(result["isError"] == false);
+
+    std::string text = getToolText(result);
+    int frame = std::stoi(text);
+    assert(frame >= 0);
+
+    ++g_passed; printf("  PASS: get_current_frame (frame=%d)\n", frame);
+}
+
+static void test_set_current_frame(httplib::Client& cli) {
+    // 現在フレームを取得して保存
+    auto before = callTool(cli, "get_current_frame");
+    int originalFrame = std::stoi(getToolText(before));
+
+    // フレームを変更
+    int testFrame = 123;
+    auto result = callTool(cli, "set_current_frame", {{"frame", testFrame}});
+    assert(result["isError"] == false);
+
+    // 変更されたことを確認
+    auto after = callTool(cli, "get_current_frame");
+    assert(std::stoi(getToolText(after)) == testFrame);
+
+    // 元に戻す
+    callTool(cli, "set_current_frame", {{"frame", originalFrame}});
+
+    ++g_passed; printf("  PASS: set_current_frame\n");
+}
+
 static int runTests() {
     httplib::Client cli(HOST, PORT);
     cli.set_connection_timeout(3);
@@ -303,6 +337,10 @@ static int runTests() {
 
     printf("Running integration tests (connected to MMD at %s:%d)...\n", HOST, PORT);
 
+    // タイムラインテスト
+    test_get_current_frame(cli);
+    test_set_current_frame(cli);
+
     // テスト前クリーンアップ
     cleanup(cli);
 
@@ -328,5 +366,6 @@ static int runTests() {
 }
 
 int main() {
+    suppressWindowsDialogs();
     return runTests();
 }

@@ -1,8 +1,4 @@
-#ifdef _WIN32
-#include <crtdbg.h>
-#include <cstdlib>
-#endif
-
+#include "tests/test_common_setup.h"
 #include "tests/mock_camera.h"
 #include "common/frame_set.h"
 #include "common/keyframe_linked_list.h"
@@ -277,11 +273,7 @@ static void test_corrupted_negative_index() {
 }
 
 int main() {
-#ifdef _WIN32
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
-    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-#endif
+    suppressWindowsDialogs();
     printf("Running common tests...\n");
 
     // FrameSet

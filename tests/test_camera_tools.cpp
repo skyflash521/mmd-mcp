@@ -1,3 +1,4 @@
+#include "tests/test_common_setup.h"
 #include "tests/mock_camera.h"
 #include "tools/camera/camera_tool.h"
 #include <nlohmann/json.hpp>
@@ -447,6 +448,7 @@ static void test_update_frame_over_max() {
 }
 
 int main() {
+    suppressWindowsDialogs();
     printf("Running camera tool tests...\n");
 
     // Read

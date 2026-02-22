@@ -1,23 +1,22 @@
 #pragma once
 
-#include <string>
-
-class IFrameReader {
+class ICurrentFrameReader {
 public:
-    virtual ~IFrameReader() = default;
+    virtual ~ICurrentFrameReader() = default;
     virtual int getFrame() const = 0;
 };
 
-class IFrameWriter {
+class ICurrentFrameWriter {
 public:
-    virtual ~IFrameWriter() = default;
+    virtual ~ICurrentFrameWriter() = default;
     virtual void setFrame(int frame) = 0;
 };
 
 #ifndef MMD_MCP_TEST
 #include "mmd_plugin.h"
+#include <string>
 
-class MmdFrameAccessor : public IFrameReader, public IFrameWriter {
+class MmdTimelineAccessor : public ICurrentFrameReader, public ICurrentFrameWriter {
 public:
     int getFrame() const override {
         auto* data = mmp::getMMDMainData();
