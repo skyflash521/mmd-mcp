@@ -17,6 +17,7 @@ public:
 
 private:
     void handleMcp(const httplib::Request& req, httplib::Response& res);
+    void handleMcpInner(const httplib::Request& req, httplib::Response& res);
 
     httplib::Server server_;
     std::thread server_thread_;

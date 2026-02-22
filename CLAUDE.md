@@ -36,15 +36,17 @@ cmake --build build --target deploy
 - MMDPluginヘッダ (`include/mmd_plugin.h`) は変更しないこと。プロジェクト設定で対応する
 - MMDPluginヘッダがC++20で削除された `std::result_of_t` を使用するため、CMakeLists.txtで `_HAS_DEPRECATED_RESULT_OF=1` を定義して復活させている
 
-## MCP仕様準拠（サーバー側 MUST チェックリスト）
+## MCP仕様準拠（MUST）
 
-このリポジトリでMCPサーバー実装を変更する際、以下の **MUST** を満たさない変更はマージしない。
+このリポジトリでMCPサーバー実装を変更する際、以下の仕様MUSTを満たさない変更はマージしない。
 
 ### 1. ライフサイクル / 初期化
 - サーバーは `initialize` 要求に対し、`result.protocolVersion` を返すこと（MUST）。
 - サーバーが要求された `protocolVersion` をサポートしている場合、同じ値を返すこと（MUST）。
 - サーバーが要求された `protocolVersion` をサポートしていない場合、サポートしている別の `protocolVersion` を返すこと（MUST）。
 - `initialize` 応答に `capabilities` と `serverInfo` を含めること（MUST）。
+
+参照: https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
 
 ### 2. JSON-RPC 基本要件
 - JSON-RPC 2.0 形式（`jsonrpc: "2.0"`）を満たす要求に対し、`id` 付き要求には対応する応答を返すこと（MUST）。
@@ -55,21 +57,26 @@ cmake --build build --target deploy
 - `initialize.result.capabilities.tools` を宣言すること（MUST）。
 - `tools/list` で各ツールの `name` `description` `inputSchema` を返すこと（MUST）。
 - `tools/call` の成功結果は `result` で返すこと（MUST）。
-- 未知ツールや不正パラメータは JSON-RPC error で返すこと（MUST）。
-- tools/call の要求形式が正しい場合は result を返し、ツール実行結果が失敗のときは result.isError: true を設定すること（MUST）。
+- 要求形式不正（未知ツール名、params欠落等）→ JSON-RPC error を返すこと（MUST）。
+- 要求形式が正しいがツール実行が失敗した場合 → `result.isError: true` を設定すること（MUST）。
+
+参照: https://modelcontextprotocol.io/specification/2025-11-25/server/tools
 
 ### 4. Streamable HTTP（HTTP transportを実装する場合）
 - MCPエンドポイントで `POST` を受理すること（MUST）。
 - `GET` で `text/event-stream` を提供しない場合は `405 Method Not Allowed` を返すこと（MUST）。
 - 通知/レスポンス入力を受理した場合は `202 Accepted`（ボディなし）を返すこと（MUST）。
-- `MCP-Protocol-Version` が無効値または非対応値の場合は `400` を返すこと（MUST）。ヘッダ欠落時の `400` は SHOULD（後方互換のため緩和可）。
+- `MCP-Protocol-Version` が無効値または非対応値の場合は `400` を返すこと（MUST）。ヘッダ欠落時の `400` は SHOULD（当プロジェクトでは後方互換のため緩和採用）。
 - セッション管理を採用する場合、終了済みセッションID付き要求に `404` を返すこと（MUST）。
+
+参照: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#streamable-http
 
 ### 5. セキュリティ（HTTP）
 - `Origin` 検証を実装し、不正Originには `403` を返すこと（MUST）。
 - ローカル運用時は `127.0.0.1` バインドを優先すること（MUST）。
 
-### 6. 実装・レビュー運用ルール
-- MCP仕様の MUST を満たさない変更提案は、実装前に差し戻すこと（MUST）。
-- 仕様判断が曖昧な場合は MCP 2025-11-25 の該当節を確認してから実装すること（MUST）。
-- 互換モードを入れる場合は、デフォルト動作と逸脱理由を明記すること（MUST）。
+## 運用方針（プロジェクト規約）
+
+- MCP仕様の MUST を満たさない変更提案は、実装前に差し戻すこと。
+- 仕様判断が曖昧な場合は MCP 2025-11-25 の該当節を確認してから実装すること。
+- 互換モードを入れる場合は、デフォルト動作と逸脱理由を明記すること。

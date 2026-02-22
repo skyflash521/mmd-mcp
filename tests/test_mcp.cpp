@@ -5,6 +5,8 @@
 #include "tools/timeline/timeline_tool.h"
 #include "tests/mock_camera.h"
 #include "tools/camera/camera_tool.h"
+#include "tests/mock_model.h"
+#include "tools/model/model_tool.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -59,7 +61,7 @@ static void test_tools_list() {
 
     auto body = json::parse(res->body);
     auto& tools = body["result"]["tools"];
-    assert(tools.is_array() && tools.size() == 7);  // 二重登録されたpingは1件のみ
+    assert(tools.is_array() && tools.size() == 9);  // 二重登録されたpingは1件のみ
 
     auto findTool = [&](const std::string& name) -> const json* {
         for (auto& t : tools) {
@@ -70,7 +72,8 @@ static void test_tools_list() {
 
     for (const auto& name : {"ping", "get_current_frame", "set_current_frame",
          "get_camera_keyframes", "create_camera_keyframes",
-         "update_camera_keyframes", "delete_camera_keyframes"}) {
+         "update_camera_keyframes", "delete_camera_keyframes",
+         "list_models", "get_model_info"}) {
         auto* t = findTool(name);
         assert(t != nullptr);
         assert((*t)["description"].is_string());
@@ -240,6 +243,7 @@ static void test_jsonrpc_field_required() {
 static MockCurrentFrameReader g_reader;
 static MockCurrentFrameWriter g_writer;
 static MockCameraAccessor g_cam_accessor;
+static MockModelAccessor g_model_accessor;
 
 static void test_tools_call_get_current_frame() {
     auto res = mcpPost(
@@ -329,6 +333,8 @@ int main() {
     server.registerTool(std::make_unique<CreateCameraKeyframesTool>(&g_cam_accessor));
     server.registerTool(std::make_unique<UpdateCameraKeyframesTool>(&g_cam_accessor));
     server.registerTool(std::make_unique<DeleteCameraKeyframesTool>(&g_cam_accessor));
+    server.registerTool(std::make_unique<ListModelsTool>(&g_model_accessor));
+    server.registerTool(std::make_unique<GetModelInfoTool>(&g_model_accessor));
     server.start();
     for (int i = 0; i < 50; ++i) {
         auto r = cli.Get("/");

@@ -296,6 +296,27 @@ static void test_set_current_frame(httplib::Client& cli) {
     ++g_passed; printf("  PASS: set_current_frame\n");
 }
 
+// --- モデル情報テスト ---
+
+static void test_list_models(httplib::Client& cli) {
+    auto result = callTool(cli, "list_models");
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("models"));
+    assert(data["models"].is_array());
+
+    ++g_passed; printf("  PASS: list_models (count=%d)\n", (int)data["models"].size());
+}
+
+static void test_get_model_info_not_found(httplib::Client& cli) {
+    // 存在しないインデックスでエラーが返ること
+    auto result = callTool(cli, "get_model_info", {{"index", 254}});
+    assert(result["isError"] == true);
+
+    ++g_passed; printf("  PASS: get_model_info not found\n");
+}
+
 static int runTests() {
     httplib::Client cli(HOST, PORT);
     cli.set_connection_timeout(3);
@@ -313,10 +334,9 @@ static int runTests() {
         };
         auto res = cli.Post("/mcp", body.dump(), "application/json");
         if (!res) {
-            printf("MMD is not running or plugin not loaded (cannot connect to %s:%d)\n",
+            printf("FAIL: MMD is not running or plugin not loaded (cannot connect to %s:%d)\n",
                    HOST, PORT);
-            printf("Skipping integration tests.\n");
-            return 0;
+            return 1;
         }
         auto response = json::parse(res->body);
         if (!response.contains("result") ||
@@ -336,6 +356,10 @@ static int runTests() {
     }
 
     printf("Running integration tests (connected to MMD at %s:%d)...\n", HOST, PORT);
+
+    // モデル情報テスト
+    test_list_models(cli);
+    test_get_model_info_not_found(cli);
 
     // タイムラインテスト
     test_get_current_frame(cli);

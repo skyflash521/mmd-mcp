@@ -44,6 +44,22 @@ McpServer::McpServer(int port) : port_(port) {
 }
 
 void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
+    try {
+        handleMcpInner(req, res);
+    } catch (const std::exception& e) {
+        res.status = 500;
+        res.set_content(
+            makeError(nullptr, -32603, std::string("Internal error: ") + e.what()).dump(),
+            "application/json");
+    } catch (...) {
+        res.status = 500;
+        res.set_content(
+            makeError(nullptr, -32603, "Internal error").dump(),
+            "application/json");
+    }
+}
+
+void McpServer::handleMcpInner(const httplib::Request& req, httplib::Response& res) {
     // Origin検証: ブラウザからのクロスオリジンリクエストを拒否
     auto origin = req.headers.find("Origin");
     if (origin != req.headers.end()) {
@@ -144,8 +160,16 @@ void McpServer::handleMcp(const httplib::Request& req, httplib::Response& res) {
         auto args = body["params"].value("arguments", json::object());
         for (auto& tool : tools_) {
             if (tool->name() == toolName) {
-                json result = tool->execute(args);
-                res.set_content(makeResponse(id, result).dump(), "application/json");
+                try {
+                    json result = tool->execute(args);
+                    res.set_content(makeResponse(id, result).dump(), "application/json");
+                } catch (const std::exception& e) {
+                    json result = {
+                        {"content", json::array({{{"type", "text"}, {"text", std::string("Internal error: ") + e.what()}}})},
+                        {"isError", true}
+                    };
+                    res.set_content(makeResponse(id, result).dump(), "application/json");
+                }
                 return;
             }
         }
