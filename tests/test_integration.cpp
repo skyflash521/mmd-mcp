@@ -317,6 +317,16 @@ static void test_get_model_info_not_found(httplib::Client& cli) {
     ++g_passed; printf("  PASS: get_model_info not found\n");
 }
 
+// --- モーフキーフレームテスト ---
+
+static void test_get_morph_keyframes_not_found(httplib::Client& cli) {
+    // 存在しないモデルインデックスでエラーが返ること
+    auto result = callTool(cli, "get_morph_keyframes", {{"model_index", 254}, {"morph_index", 0}});
+    assert(result["isError"] == true);
+
+    ++g_passed; printf("  PASS: get_morph_keyframes model not found\n");
+}
+
 static int runTests() {
     httplib::Client cli(HOST, PORT);
     cli.set_connection_timeout(3);
@@ -360,6 +370,9 @@ static int runTests() {
     // モデル情報テスト
     test_list_models(cli);
     test_get_model_info_not_found(cli);
+
+    // モーフキーフレームテスト
+    test_get_morph_keyframes_not_found(cli);
 
     // タイムラインテスト
     test_get_current_frame(cli);

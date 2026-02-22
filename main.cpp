@@ -12,6 +12,8 @@
 #include "tools/camera/camera_tool.h"
 #include "tools/model/model_accessor.h"
 #include "tools/model/model_tool.h"
+#include "tools/morph/morph_accessor.h"
+#include "tools/morph/morph_tool.h"
 #ifdef MMD_MCP_DEBUG
 #include "tools/debug/dump_camera_region_tool.h"
 #include "tools/debug/enumerate_controls_tool.h"
@@ -33,6 +35,7 @@ public:
         server_.registerTool(std::make_unique<DeleteCameraKeyframesTool>(&camera_accessor_));
         server_.registerTool(std::make_unique<ListModelsTool>(&model_accessor_));
         server_.registerTool(std::make_unique<GetModelInfoTool>(&model_accessor_));
+        server_.registerTool(std::make_unique<GetMorphKeyframesTool>(&morph_accessor_));
 #ifdef MMD_MCP_DEBUG
         server_.registerTool(std::make_unique<DumpCameraRegionTool>());
         server_.registerTool(std::make_unique<EnumerateControlsTool>());
@@ -48,6 +51,7 @@ private:
     MmdTimelineAccessor timeline_accessor_;
     MmdCameraAccessor camera_accessor_;
     MmdModelAccessor model_accessor_;
+    MmdMorphKeyframeAccessor morph_accessor_;
     McpServer server_;
 };
 

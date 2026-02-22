@@ -73,6 +73,11 @@ target_compile_definitions(test_model_tools PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_
 target_include_directories(test_model_tools PRIVATE "${PROJECT_SOURCE_DIR}")
 target_link_libraries(test_model_tools PRIVATE nlohmann_json::nlohmann_json)
 
+add_executable(test_morph_tools tests/test_morph_tools.cpp)
+target_compile_definitions(test_morph_tools PRIVATE WIN32_LEAN_AND_MEAN MMD_MCP_TEST)
+target_include_directories(test_morph_tools PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(test_morph_tools PRIVATE nlohmann_json::nlohmann_json)
+
 add_executable(test_integration tests/test_integration.cpp)
 target_compile_definitions(test_integration PRIVATE WIN32_LEAN_AND_MEAN)
 target_include_directories(test_integration PRIVATE "${PROJECT_SOURCE_DIR}")
