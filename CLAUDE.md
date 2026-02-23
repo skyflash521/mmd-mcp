@@ -32,6 +32,30 @@ cmake --build build --target deploy
 
 デプロイ先は `CMakeUserPresets.json` の `MMD_PLUGIN_DIR` で設定する（ローカル設定、Git管理外）。
 
+## テスト
+
+### ユニットテスト
+
+```bash
+cmake --build build && build/Debug/test_common.exe && build/Debug/test_mcp.exe && build/Debug/test_camera_tools.exe && build/Debug/test_model_tools.exe && build/Debug/test_morph_tools.exe && build/Debug/test_timeline_tools.exe
+```
+
+MMD不要。モックを使用するため単体で実行可能。
+
+### 結合テスト (test_integration)
+
+```bash
+build/Debug/test_integration.exe
+```
+
+**前提条件（実行前に必ず確認）:**
+- MMDが起動済みで、mmd_mcp.dll がプラグインとしてロードされていること
+- MCPサーバーが `127.0.0.1:3939` でリッスン中であること
+- PMXモデルが1体以上ロードされていること（`list_models` やモーフ系テストの検証に必要）
+- カメラキーフレームのフレーム9000〜9099が空いていること（テスト用フレーム範囲）
+
+**実行手順:** 結合テストを実行する際は、必ず先に上記の前提条件をユーザーに提示し、準備完了の確認を得てから実行すること。前提条件を提示せずにいきなりテストを実行してはならない。
+
 ## 備考
 
 - MMDPluginヘッダ (`include/mmd_plugin.h`) は変更しないこと。プロジェクト設定で対応する

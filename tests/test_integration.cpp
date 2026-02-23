@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 
 using json = nlohmann::json;
@@ -87,7 +88,87 @@ static bool approxEqual(double a, double b, double eps = 0.001) {
     return std::fabs(a - b) < eps;
 }
 
-// --- テスト ---
+// --- tools/list テスト ---
+
+static void test_tools_list(httplib::Client& cli) {
+    auto response = mcpCall(cli, "tools/list");
+    assert(response.contains("result"));
+    auto& tools = response["result"]["tools"];
+    assert(tools.is_array());
+
+    // 登録済みツール名を収集
+    std::set<std::string> names;
+    for (auto& t : tools) {
+        assert(t.contains("name"));
+        assert(t.contains("description"));
+        assert(t.contains("inputSchema"));
+        names.insert(t["name"].get<std::string>());
+    }
+
+    // 全ツールが登録されていること
+    std::vector<std::string> expected = {
+        "ping", "get_current_frame", "set_current_frame",
+        "get_camera_keyframes", "create_camera_keyframes",
+        "update_camera_keyframes", "delete_camera_keyframes",
+        "list_models", "get_model_info",
+        "get_morph_keyframes", "get_all_morph_keyframes"
+    };
+    for (auto& e : expected) {
+        assert(names.count(e) == 1);
+    }
+
+    ++g_passed; printf("  PASS: tools/list (%d tools)\n", (int)tools.size());
+}
+
+// --- カメラキーフレームテスト ---
+
+static void test_get_camera_keyframes_frame0(httplib::Client& cli) {
+    // フレーム0は常に存在する
+    auto result = callTool(cli, "get_camera_keyframes", {{"frames", "0"}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data["keyframes"].size() == 1);
+    auto& kf = data["keyframes"][0];
+    assert(kf["frame"] == 0);
+    // 必須フィールドの存在確認
+    assert(kf.contains("position"));
+    assert(kf.contains("rotation"));
+    assert(kf.contains("distance"));
+    assert(kf.contains("fov"));
+    assert(kf.contains("interpolation"));
+
+    ++g_passed; printf("  PASS: get_camera_keyframes frame 0\n");
+}
+
+static void test_get_camera_keyframes_range_filter(httplib::Client& cli) {
+    int f1 = TEST_FRAME_BASE + 21;
+    int f2 = TEST_FRAME_BASE + 25;
+    int f3 = TEST_FRAME_BASE + 30;
+
+    // 3つ作成
+    json kfs = json::array({
+        makeTestKeyframe(f1, 1.0f), makeTestKeyframe(f2, 2.0f), makeTestKeyframe(f3, 3.0f)
+    });
+    auto createResult = callTool(cli, "create_camera_keyframes", {{"keyframes", kfs}});
+    assert(createResult["isError"] == false);
+
+    // 範囲フィルタ: f1-f2 のみ取得（f3は含まれない）
+    std::string range = std::to_string(f1) + "-" + std::to_string(f2);
+    auto result = callTool(cli, "get_camera_keyframes", {{"frames", range}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data["keyframes"].size() == 2);
+    assert(data["keyframes"][0]["frame"] == f1);
+    assert(data["keyframes"][1]["frame"] == f2);
+
+    // クリーンアップ
+    std::string cleanRange = std::to_string(f1) + "-" + std::to_string(f3);
+    callTool(cli, "delete_camera_keyframes", {{"frames", cleanRange}});
+
+    ++g_passed; printf("  PASS: get_camera_keyframes range filter\n");
+}
 
 static void test_create_and_get(httplib::Client& cli) {
     int frame = TEST_FRAME_BASE + 1;
@@ -305,8 +386,19 @@ static void test_list_models(httplib::Client& cli) {
     auto data = json::parse(getToolText(result));
     assert(data.contains("models"));
     assert(data["models"].is_array());
+    assert(data["models"].size() >= 1); // 前提条件: モデル1体以上
 
-    ++g_passed; printf("  PASS: list_models (count=%d)\n", (int)data["models"].size());
+    // 各モデルに必須フィールドがあること
+    auto& m = data["models"][0];
+    assert(m.contains("index"));
+    assert(m.contains("name_jp"));
+    assert(m.contains("bone_count"));
+    assert(m.contains("morph_count"));
+    assert(m["bone_count"].get<int>() > 0);
+    assert(m["morph_count"].get<int>() > 0);
+
+    ++g_passed; printf("  PASS: list_models (count=%d, name=%s)\n",
+        (int)data["models"].size(), m["name_jp"].get<std::string>().c_str());
 }
 
 static void test_get_model_info_not_found(httplib::Client& cli) {
@@ -317,6 +409,52 @@ static void test_get_model_info_not_found(httplib::Client& cli) {
     ++g_passed; printf("  PASS: get_model_info not found\n");
 }
 
+static void test_get_model_info_with_morphs(httplib::Client& cli) {
+    // モーフ名が取得できること
+    auto result = callTool(cli, "get_model_info",
+        {{"index", 0}, {"include", json::array({"morphs"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("morphs"));
+    assert(data["morphs"].is_array());
+    assert(data["morphs"].size() > 0);
+
+    // 各モーフにname_jpが存在し、空でないこと
+    auto& first = data["morphs"][0];
+    assert(first.contains("index"));
+    assert(first.contains("name_jp"));
+    assert(!first["name_jp"].get<std::string>().empty());
+
+    // include:["morphs"] ではbonesが返らないこと
+    assert(!data.contains("bones"));
+
+    ++g_passed; printf("  PASS: get_model_info with morphs (count=%d, first=%s)\n",
+        (int)data["morphs"].size(), first["name_jp"].get<std::string>().c_str());
+}
+
+static void test_get_model_info_with_bones(httplib::Client& cli) {
+    // ボーン名が取得できること
+    auto result = callTool(cli, "get_model_info",
+        {{"index", 0}, {"include", json::array({"bones"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("bones"));
+    assert(data["bones"].is_array());
+    assert(data["bones"].size() > 0);
+
+    auto& first = data["bones"][0];
+    assert(first.contains("name_jp"));
+    assert(!first["name_jp"].get<std::string>().empty());
+
+    // include:["bones"] ではmorphsが返らないこと
+    assert(!data.contains("morphs"));
+
+    ++g_passed; printf("  PASS: get_model_info with bones (count=%d, first=%s)\n",
+        (int)data["bones"].size(), first["name_jp"].get<std::string>().c_str());
+}
+
 // --- モーフキーフレームテスト ---
 
 static void test_get_morph_keyframes_not_found(httplib::Client& cli) {
@@ -325,6 +463,94 @@ static void test_get_morph_keyframes_not_found(httplib::Client& cli) {
     assert(result["isError"] == true);
 
     ++g_passed; printf("  PASS: get_morph_keyframes model not found\n");
+}
+
+static void test_get_morph_keyframes_by_index(httplib::Client& cli) {
+    // morph_index=0 でキーフレームが取得できること
+    auto result = callTool(cli, "get_morph_keyframes",
+        {{"model_index", 0}, {"morph_index", 0}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("keyframes"));
+    assert(data["keyframes"].is_array());
+
+    ++g_passed; printf("  PASS: get_morph_keyframes by index (keyframes=%d)\n",
+        (int)data["keyframes"].size());
+}
+
+static void test_get_morph_keyframes_by_name(httplib::Client& cli) {
+    // get_model_info から先頭モーフ名を取得
+    auto infoResult = callTool(cli, "get_model_info",
+        {{"index", 0}, {"include", json::array({"morphs"})}});
+    assert(infoResult["isError"] == false);
+    auto infoData = json::parse(getToolText(infoResult));
+    assert(infoData["morphs"].size() > 0);
+    std::string morphName = infoData["morphs"][0]["name_jp"].get<std::string>();
+
+    // その名前でキーフレーム取得
+    auto result = callTool(cli, "get_morph_keyframes",
+        {{"model_index", 0}, {"morph_name", morphName}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("keyframes"));
+
+    ++g_passed; printf("  PASS: get_morph_keyframes by name (\"%s\", keyframes=%d)\n",
+        morphName.c_str(), (int)data["keyframes"].size());
+}
+
+static void test_get_morph_name_index_equivalence(httplib::Client& cli) {
+    // get_model_info から先頭モーフの名前とインデックスを取得
+    auto infoResult = callTool(cli, "get_model_info",
+        {{"index", 0}, {"include", json::array({"morphs"})}});
+    assert(infoResult["isError"] == false);
+    auto infoData = json::parse(getToolText(infoResult));
+    assert(infoData["morphs"].size() > 0);
+    int morphIndex = infoData["morphs"][0]["index"].get<int>();
+    std::string morphName = infoData["morphs"][0]["name_jp"].get<std::string>();
+
+    // morph_index で取得
+    auto byIndex = callTool(cli, "get_morph_keyframes",
+        {{"model_index", 0}, {"morph_index", morphIndex}});
+    assert(byIndex["isError"] == false);
+    auto dataIndex = json::parse(getToolText(byIndex));
+
+    // morph_name で取得
+    auto byName = callTool(cli, "get_morph_keyframes",
+        {{"model_index", 0}, {"morph_name", morphName}});
+    assert(byName["isError"] == false);
+    auto dataName = json::parse(getToolText(byName));
+
+    // キーフレーム配列が一致
+    assert(dataIndex["keyframes"].size() == dataName["keyframes"].size());
+    for (size_t i = 0; i < dataIndex["keyframes"].size(); ++i) {
+        assert(dataIndex["keyframes"][i]["frame"] == dataName["keyframes"][i]["frame"]);
+    }
+
+    ++g_passed; printf("  PASS: morph_name/morph_index equivalence (\"%s\"=index %d)\n",
+        morphName.c_str(), morphIndex);
+}
+
+static void test_get_all_morph_keyframes(httplib::Client& cli) {
+    auto result = callTool(cli, "get_all_morph_keyframes", {{"model_index", 0}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(getToolText(result));
+    assert(data.contains("morphs"));
+    assert(data["morphs"].is_array());
+
+    // 返されたモーフにname_jpが紐付いていること
+    if (data["morphs"].size() > 0) {
+        auto& first = data["morphs"][0];
+        assert(first.contains("morph_index"));
+        assert(first.contains("name_jp"));
+        assert(first.contains("keyframes"));
+        assert(!first["name_jp"].get<std::string>().empty());
+    }
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes (morphs_with_keyframes=%d)\n",
+        (int)data["morphs"].size());
 }
 
 static int runTests() {
@@ -367,12 +593,24 @@ static int runTests() {
 
     printf("Running integration tests (connected to MMD at %s:%d)...\n", HOST, PORT);
 
+    // ツール一覧テスト
+    test_tools_list(cli);
+
+    // カメラ読み取りテスト
+    test_get_camera_keyframes_frame0(cli);
+
     // モデル情報テスト
     test_list_models(cli);
     test_get_model_info_not_found(cli);
+    test_get_model_info_with_morphs(cli);
+    test_get_model_info_with_bones(cli);
 
     // モーフキーフレームテスト
     test_get_morph_keyframes_not_found(cli);
+    test_get_morph_keyframes_by_index(cli);
+    test_get_morph_keyframes_by_name(cli);
+    test_get_morph_name_index_equivalence(cli);
+    test_get_all_morph_keyframes(cli);
 
     // タイムラインテスト
     test_get_current_frame(cli);
@@ -384,6 +622,7 @@ static int runTests() {
     // Create テスト
     test_create_and_get(cli);
     test_create_already_exists(cli);
+    test_get_camera_keyframes_range_filter(cli);
 
     // Update テスト
     test_update_partial(cli);

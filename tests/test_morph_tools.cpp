@@ -205,6 +205,42 @@ static void test_get_both_index_and_name() {
     ++g_passed; printf("  PASS: get both index and name error\n");
 }
 
+// --- morph_name / morph_index 同値性 ---
+
+static void test_get_morph_name_index_equivalence() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+    accessor.seed(0, 1, 0, 0.0f);
+    accessor.seed(0, 1, 10, 0.5f);
+    accessor.seed(0, 1, 20, 1.0f);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 3, 0, true}, {},
+        {{"blink", "", 2, 1}, {"smile", "", 3, 1}, {"angry", "", 4, 1}});
+
+    GetMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    // morph_index=1 で取得
+    auto byIndex = tool.execute({{"model_index", 0}, {"morph_index", 1}});
+    assert(byIndex["isError"] == false);
+    auto dataIndex = json::parse(byIndex["content"][0]["text"].get<std::string>());
+
+    // morph_name="smile" (index=1) で取得
+    auto byName = tool.execute({{"model_index", 0}, {"morph_name", "smile"}});
+    assert(byName["isError"] == false);
+    auto dataName = json::parse(byName["content"][0]["text"].get<std::string>());
+
+    // keyframes配列が完全一致
+    assert(dataIndex["keyframes"].size() == dataName["keyframes"].size());
+    for (size_t i = 0; i < dataIndex["keyframes"].size(); ++i) {
+        assert(dataIndex["keyframes"][i]["frame"] == dataName["keyframes"][i]["frame"]);
+        assert(std::fabs(dataIndex["keyframes"][i]["value"].get<float>() -
+                         dataName["keyframes"][i]["value"].get<float>()) < 0.001f);
+    }
+
+    ++g_passed; printf("  PASS: morph_name/morph_index equivalence\n");
+}
+
 // --- get_all_morph_keyframes ---
 
 static void test_get_all_morphs_basic() {
@@ -369,6 +405,7 @@ int main() {
     test_get_by_morph_name_not_found();
     test_get_both_index_and_name();
     test_get_neither_index_nor_name();
+    test_get_morph_name_index_equivalence();
     test_get_all_morphs_basic();
     test_get_all_morphs_include_zero();
     test_get_all_morphs_no_keyframes_excluded();
