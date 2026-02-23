@@ -372,6 +372,46 @@ static void test_startIndex_out_of_range() {
     ++g_passed; printf("  PASS: forEachKeyframe startIndex out of range\n");
 }
 
+static void test_startIndex_terminates_at_zero() {
+    // 実際のMMDモーフ配列の構造をシミュレート:
+    // モーフのリンクリストは循環せず、最終ノードの next_index が 0 を指す。
+    // morph 0: head=0, frames=[0, 10] — 循環（0→2→0）
+    // morph 1: head=1, frames=[0, 30, 50] — 最終ノードの next が 0 を指す（1→3→4→0）
+    KF arr[10] = {};
+    std::memset(arr, 0, sizeof(arr));
+
+    // morph 0: 0 → 2 → 0 (循環)
+    Traits::setFrameNo(arr[0], 0);
+    Traits::setNextIndex(arr[0], 2);
+    Traits::setFrameNo(arr[2], 10);
+    Traits::setNextIndex(arr[2], 0); // 0 に戻る
+
+    // morph 1: 1 → 3 → 4 → 0 (終端が 0)
+    Traits::setFrameNo(arr[1], 0);
+    Traits::setNextIndex(arr[1], 3);
+    Traits::setFrameNo(arr[3], 30);
+    Traits::setNextIndex(arr[3], 4);
+    Traits::setFrameNo(arr[4], 50);
+    Traits::setNextIndex(arr[4], 0); // morph 0 のセンチネルを指す（非循環）
+
+    // morph 0: 0, 10 の2フレーム
+    std::vector<int> frames0;
+    kfForEachFrom(arr, [&](const KF& kf) { frames0.push_back(Traits::frameNo(kf)); }, 0);
+    assert(frames0.size() == 2);
+    assert(frames0[0] == 0);
+    assert(frames0[1] == 10);
+
+    // morph 1: 0, 30, 50 の3フレーム（0 に到達したら停止、morph 0 に突入しない）
+    std::vector<int> frames1;
+    kfForEachFrom(arr, [&](const KF& kf) { frames1.push_back(Traits::frameNo(kf)); }, 1);
+    assert(frames1.size() == 3);
+    assert(frames1[0] == 0);
+    assert(frames1[1] == 30);
+    assert(frames1[2] == 50);
+
+    ++g_passed; printf("  PASS: forEachKeyframe startIndex terminates at zero\n");
+}
+
 static void test_startIndex_corrupted_link() {
     // startIndex からの連結リストが配列外を指す
     KF arr[10] = {};
@@ -422,6 +462,7 @@ int main() {
     test_startIndex_normal();
     test_startIndex_sentinel_only();
     test_startIndex_out_of_range();
+    test_startIndex_terminates_at_zero();
     test_startIndex_corrupted_link();
 
     printf("All %d common tests passed.\n", g_passed);

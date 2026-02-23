@@ -27,6 +27,12 @@ struct MorphBasicInfo {
     int type = 0;   // 0:Group, 1:Vertex, 2:Bone, 3-7:UV, 8:Material, 9:Flip, 10:Impulse
 };
 
+enum class PmxStatus {
+    ok,
+    parse_failed,
+    file_modified_after_launch
+};
+
 class IModelAccessor {
 public:
     virtual ~IModelAccessor() = default;
@@ -41,19 +47,35 @@ public:
     virtual std::vector<BoneInfo> getBones(int index) const = 0;
 
     // 指定インデックスのモデルのモーフ一覧を返す（PMXファイルから取得）
-    // first: 取得成功したか, second: モーフ一覧
-    virtual std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const = 0;
+    virtual std::pair<PmxStatus, std::vector<MorphBasicInfo>> getMorphs(int index) const = 0;
 };
 
 #ifndef MMD_MCP_TEST
 #include "mmd_plugin.h"
 #include "common/encoding.h"
 #include "common/pmx_parser.h"
+#include <mutex>
+#include <map>
 
 class MmdModelAccessor : public IModelAccessor {
     static constexpr int MAX_MODELS = 255;
 
+    struct CachedMorphs {
+        bool ok = false;
+        std::vector<MorphBasicInfo> morphs;
+    };
+
 public:
+    MmdModelAccessor() {
+        FILETIME creation, exit, kernel, user;
+        if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)) {
+            process_start_time_ = creation;
+        } else {
+            process_start_time_.dwLowDateTime = 0;
+            process_start_time_.dwHighDateTime = 0;
+        }
+    }
+
     std::vector<std::pair<int, ModelInfo>> listModels() const override {
         std::vector<std::pair<int, ModelInfo>> result;
         auto* data = mmp::getMMDMainData();
@@ -108,25 +130,55 @@ public:
         return result;
     }
 
-    std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
-        std::vector<MorphBasicInfo> result;
-        if (index < 0 || index >= MAX_MODELS) return {false, result};
+    std::pair<PmxStatus, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
+        if (index < 0 || index >= MAX_MODELS) return {PmxStatus::parse_failed, {}};
         auto* data = mmp::getMMDMainData();
-        if (!data) return {false, result};
+        if (!data) return {PmxStatus::parse_failed, {}};
         auto* model = data->model_data[index];
-        if (!model) return {false, result};
+        if (!model) return {PmxStatus::parse_failed, {}};
 
-        auto pmxInfo = pmx::parse(model->file_path);
-        if (!pmxInfo.valid) return {false, result};
+        std::wstring filePath(model->file_path ? model->file_path : L"");
 
-        result.reserve(pmxInfo.morphs.size());
-        for (auto& m : pmxInfo.morphs) {
-            result.push_back({std::move(m.name_jp), std::move(m.name_en), m.panel, m.type});
+        // PMXファイルがMMD起動後に更新されていないか確認
+        if (!filePath.empty() && isFileModifiedAfterLaunch(filePath)) {
+            return {PmxStatus::file_modified_after_launch, {}};
         }
-        return {true, std::move(result)};
+
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        auto it = morph_cache_.find(filePath);
+        if (it != morph_cache_.end()) {
+            return {it->second.ok ? PmxStatus::ok : PmxStatus::parse_failed, it->second.morphs};
+        }
+
+        auto parsed = parsePmxMorphs(filePath);
+        morph_cache_[filePath] = parsed;
+        return {parsed.ok ? PmxStatus::ok : PmxStatus::parse_failed, parsed.morphs};
+    }
+
+protected:
+    virtual CachedMorphs parsePmxMorphs(const std::wstring& filePath) const {
+        CachedMorphs cached;
+        auto pmxInfo = pmx::parse(filePath.c_str());
+        if (!pmxInfo.valid) return cached;
+
+        cached.ok = true;
+        cached.morphs.reserve(pmxInfo.morphs.size());
+        for (auto& m : pmxInfo.morphs) {
+            cached.morphs.push_back({std::move(m.name_jp), std::move(m.name_en), m.panel, m.type});
+        }
+        return cached;
     }
 
 private:
+    bool isFileModifiedAfterLaunch(const std::wstring& filePath) const {
+        if (process_start_time_.dwLowDateTime == 0 && process_start_time_.dwHighDateTime == 0)
+            return false;  // プロセス時刻取得失敗時は判定スキップ
+        WIN32_FILE_ATTRIBUTE_DATA fileAttr;
+        if (!GetFileAttributesExW(filePath.c_str(), GetFileExInfoStandard, &fileAttr))
+            return false;  // ファイル情報取得失敗時は判定スキップ
+        return CompareFileTime(&fileAttr.ftLastWriteTime, &process_start_time_) > 0;
+    }
+
     static std::string wcharToUtf8(const wchar_t* wstr) {
         if (!wstr || !wstr[0]) return {};
         int len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, nullptr, 0, nullptr, nullptr);
@@ -135,5 +187,9 @@ private:
         WideCharToMultiByte(CP_UTF8, 0, wstr, -1, &result[0], len, nullptr, nullptr);
         return result;
     }
+
+    FILETIME process_start_time_;
+    mutable std::mutex cache_mutex_;
+    mutable std::map<std::wstring, CachedMorphs> morph_cache_;
 };
 #endif

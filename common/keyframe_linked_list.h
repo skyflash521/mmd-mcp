@@ -11,6 +11,9 @@ namespace mmd_mcp {
 // 全走査関数は maxCount による配列境界チェックと走査回数ガードにより、
 // 破損リンクによる配列外アクセスや無限ループを防止する。
 
+// MMDのキーフレーム配列は共有プール型の連結リスト。
+// インデックス0は常にリストの起点（センチネル）であり、
+// startIndex に戻った場合（循環）、またはインデックス0に到達した場合（別リストの終端）で停止する。
 template<typename KF, typename Traits = KeyframeTraits<KF>>
 void forEachKeyframe(KF* arr, int maxCount, const std::function<void(const KF&)>& visitor, int startIndex = 0) {
     if (!arr || maxCount <= 0) return;
@@ -22,7 +25,9 @@ void forEachKeyframe(KF* arr, int maxCount, const std::function<void(const KF&)>
         idx = Traits::nextIndex(arr[idx]);
         if (idx < 0 || idx >= maxCount) break;
         if (++guard >= maxCount) break;
-    } while (idx != startIndex);
+        if (idx == startIndex) break;
+        if (idx == 0 && startIndex != 0) break;
+    } while (true);
 }
 
 template<typename KF, typename Traits = KeyframeTraits<KF>>

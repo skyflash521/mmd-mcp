@@ -37,12 +37,14 @@ public:
     }
 
     void setMorphsFail(int index) { morphs_fail_.insert(index); }
+    void setMorphsFileModified(int index) { morphs_file_modified_.insert(index); }
 
-    std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
-        if (morphs_fail_.count(index)) return {false, {}};
+    std::pair<PmxStatus, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
+        if (morphs_file_modified_.count(index)) return {PmxStatus::file_modified_after_launch, {}};
+        if (morphs_fail_.count(index)) return {PmxStatus::parse_failed, {}};
         auto it = morphs_.find(index);
-        if (it == morphs_.end()) return {true, {}};
-        return {true, it->second};
+        if (it == morphs_.end()) return {PmxStatus::ok, {}};
+        return {PmxStatus::ok, it->second};
     }
 
 private:
@@ -50,4 +52,5 @@ private:
     std::map<int, std::vector<BoneInfo>> bones_;
     std::map<int, std::vector<MorphBasicInfo>> morphs_;
     std::set<int> morphs_fail_;
+    std::set<int> morphs_file_modified_;
 };

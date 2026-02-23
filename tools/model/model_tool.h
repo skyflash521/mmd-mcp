@@ -59,7 +59,12 @@ public:
         return {
             {"type", "object"},
             {"properties", {
-                {"index", {{"type", "integer"}, {"description", "Model index (from list_models)"}, {"minimum", 0}}}
+                {"index", {{"type", "integer"}, {"description", "Model index (from list_models)"}, {"minimum", 0}}},
+                {"include", {
+                    {"type", "array"},
+                    {"items", {{"type", "string"}, {"enum", {"bones", "morphs"}}}},
+                    {"description", "Sections to include in response. Omit for all sections."}
+                }}
             }},
             {"required", nlohmann::json::array({"index"})},
             {"additionalProperties", false}
@@ -69,54 +74,40 @@ public:
     nlohmann::json execute(const nlohmann::json& args) override {
         using json = nlohmann::json;
         if (!accessor_) {
-            return {
-                {"content", json::array({{{"type", "text"}, {"text", "MMD data not available"}}})},
-                {"isError", true}
-            };
+            return errorResult("MMD data not available");
         }
         if (!args.contains("index") || !args["index"].is_number_integer()) {
-            return {
-                {"content", json::array({{{"type", "text"}, {"text", "Missing or invalid 'index' argument"}}})},
-                {"isError", true}
-            };
+            return errorResult("Missing or invalid 'index' argument");
         }
 
         int index = args["index"].get<int>();
         if (index < 0) {
-            return {
-                {"content", json::array({{{"type", "text"}, {"text", "Index must be non-negative"}}})},
-                {"isError", true}
-            };
+            return errorResult("Index must be non-negative");
+        }
+
+        // include フィルタの解析
+        bool includeBones = true;
+        bool includeMorphs = true;
+        if (args.contains("include")) {
+            if (!args["include"].is_array()) {
+                return errorResult("'include' must be an array");
+            }
+            includeBones = false;
+            includeMorphs = false;
+            for (auto& v : args["include"]) {
+                if (!v.is_string()) {
+                    return errorResult("'include' array elements must be strings");
+                }
+                auto s = v.get<std::string>();
+                if (s == "bones") includeBones = true;
+                else if (s == "morphs") includeMorphs = true;
+                else return errorResult("Unknown include value: '" + s + "'. Valid values: bones, morphs");
+            }
         }
 
         ModelInfo info;
         if (!accessor_->getModelInfo(index, info)) {
-            return {
-                {"content", json::array({{{"type", "text"}, {"text", "Model not found at index " + std::to_string(index)}}})},
-                {"isError", true}
-            };
-        }
-
-        auto bones = accessor_->getBones(index);
-        json bonesArr = json::array();
-        for (int i = 0; i < static_cast<int>(bones.size()); ++i) {
-            bonesArr.push_back({
-                {"index", i},
-                {"name_jp", bones[i].name_jp},
-                {"name_en", bones[i].name_en}
-            });
-        }
-
-        auto [morphsOk, morphs] = accessor_->getMorphs(index);
-        json morphsArr = json::array();
-        for (int i = 0; i < static_cast<int>(morphs.size()); ++i) {
-            morphsArr.push_back({
-                {"index", i},
-                {"name_jp", morphs[i].name_jp},
-                {"name_en", morphs[i].name_en},
-                {"panel", morphs[i].panel},
-                {"type", morphs[i].type}
-            });
+            return errorResult("Model not found at index " + std::to_string(index));
         }
 
         json result = {
@@ -128,15 +119,56 @@ public:
             {"bone_count", info.bone_count},
             {"morph_count", info.morph_count},
             {"ik_count", info.ik_count},
-            {"is_visible", info.is_visible},
-            {"bones", bonesArr},
-            {"morphs", morphsArr},
-            {"morph_source", morphsOk ? "pmx" : "unavailable"}
+            {"is_visible", info.is_visible}
         };
+
+        if (includeBones) {
+            auto bones = accessor_->getBones(index);
+            json bonesArr = json::array();
+            for (int i = 0; i < static_cast<int>(bones.size()); ++i) {
+                bonesArr.push_back({
+                    {"index", i},
+                    {"name_jp", bones[i].name_jp},
+                    {"name_en", bones[i].name_en}
+                });
+            }
+            result["bones"] = bonesArr;
+        }
+
+        if (includeMorphs) {
+            auto [pmxStatus, morphs] = accessor_->getMorphs(index);
+            if (pmxStatus == PmxStatus::file_modified_after_launch) {
+                return errorResult(
+                    "The PMX file for this model was modified after MMD was launched. "
+                    "Morph data may be inconsistent. "
+                    "Please ask the user to restart MMD and try again.");
+            }
+            json morphsArr = json::array();
+            for (int i = 0; i < static_cast<int>(morphs.size()); ++i) {
+                morphsArr.push_back({
+                    {"index", i},
+                    {"name_jp", morphs[i].name_jp},
+                    {"name_en", morphs[i].name_en},
+                    {"panel", morphs[i].panel},
+                    {"type", morphs[i].type}
+                });
+            }
+            result["morphs"] = morphsArr;
+            result["morph_source"] = (pmxStatus == PmxStatus::ok) ? "pmx" : "unavailable";
+        }
 
         return {
             {"content", json::array({{{"type", "text"}, {"text", result.dump()}}})},
             {"isError", false}
+        };
+    }
+
+private:
+    static nlohmann::json errorResult(const std::string& msg) {
+        using json = nlohmann::json;
+        return {
+            {"content", json::array({{{"type", "text"}, {"text", msg}}})},
+            {"isError", true}
         };
     }
 

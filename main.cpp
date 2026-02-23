@@ -35,7 +35,8 @@ public:
         server_.registerTool(std::make_unique<DeleteCameraKeyframesTool>(&camera_accessor_));
         server_.registerTool(std::make_unique<ListModelsTool>(&model_accessor_));
         server_.registerTool(std::make_unique<GetModelInfoTool>(&model_accessor_));
-        server_.registerTool(std::make_unique<GetMorphKeyframesTool>(&morph_accessor_));
+        server_.registerTool(std::make_unique<GetMorphKeyframesTool>(&morph_accessor_, &model_accessor_));
+        server_.registerTool(std::make_unique<GetAllMorphKeyframesTool>(&morph_accessor_, &model_accessor_));
 #ifdef MMD_MCP_DEBUG
         server_.registerTool(std::make_unique<DumpCameraRegionTool>());
         server_.registerTool(std::make_unique<EnumerateControlsTool>());

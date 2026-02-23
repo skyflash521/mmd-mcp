@@ -170,6 +170,130 @@ static void test_get_model_info_morph_source_unavailable() {
     ++g_passed; printf("  PASS: get_model_info morph_source unavailable\n");
 }
 
+// --- file_modified_after_launch ---
+
+static void test_get_model_info_file_modified() {
+    MockModelAccessor accessor;
+    accessor.seed(0, {"Miku", "Miku_EN", "", "", 150, 30, 10, true});
+    accessor.setMorphsFileModified(0);
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("modified after MMD was launched") != std::string::npos);
+    assert(msg.find("restart MMD") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get_model_info file modified after launch\n");
+}
+
+static void test_get_model_info_file_modified_bones_only() {
+    MockModelAccessor accessor;
+    accessor.seed(0, {"Miku", "Miku_EN", "", "", 150, 30, 10, true},
+        {{"center", "center_en"}});
+    accessor.setMorphsFileModified(0);
+    GetModelInfoTool tool(&accessor);
+
+    // include: ["bones"] の場合、PMXパース不要なのでエラーにならない
+    auto result = tool.execute({{"index", 0}, {"include", json::array({"bones"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data.contains("bones"));
+    assert(!data.contains("morphs"));
+
+    ++g_passed; printf("  PASS: get_model_info file modified but bones only (no error)\n");
+}
+
+// --- include filter ---
+
+static MockModelAccessor makeIncludeTestAccessor() {
+    MockModelAccessor accessor;
+    ModelInfo info{"Miku", "Miku_EN", "comment", "C:\\miku.pmx", 150, 30, 10, true};
+    std::vector<BoneInfo> bones = {{"center", "center_en"}};
+    std::vector<MorphBasicInfo> morphs = {{"smile", "smile_en", 3, 1}};
+    accessor.seed(0, info, bones, morphs);
+    return accessor;
+}
+
+static void test_get_model_info_include_morphs_only() {
+    auto accessor = makeIncludeTestAccessor();
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}, {"include", json::array({"morphs"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(!data.contains("bones"));
+    assert(data.contains("morphs"));
+    assert(data["morphs"].size() == 1);
+    assert(data["morphs"][0]["name_jp"] == "smile");
+    assert(data.contains("morph_source"));
+    assert(data["morph_source"] == "pmx");
+
+    ++g_passed; printf("  PASS: get_model_info include morphs only\n");
+}
+
+static void test_get_model_info_include_bones_only() {
+    auto accessor = makeIncludeTestAccessor();
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}, {"include", json::array({"bones"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data.contains("bones"));
+    assert(data["bones"].size() == 1);
+    assert(!data.contains("morphs"));
+    assert(!data.contains("morph_source"));
+
+    ++g_passed; printf("  PASS: get_model_info include bones only\n");
+}
+
+static void test_get_model_info_include_empty() {
+    auto accessor = makeIncludeTestAccessor();
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}, {"include", json::array()}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(!data.contains("bones"));
+    assert(!data.contains("morphs"));
+    assert(!data.contains("morph_source"));
+    assert(data["name_jp"] == "Miku");
+
+    ++g_passed; printf("  PASS: get_model_info include empty\n");
+}
+
+static void test_get_model_info_include_both() {
+    auto accessor = makeIncludeTestAccessor();
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}, {"include", json::array({"bones", "morphs"})}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data.contains("bones"));
+    assert(data.contains("morphs"));
+    assert(data.contains("morph_source"));
+
+    ++g_passed; printf("  PASS: get_model_info include both\n");
+}
+
+static void test_get_model_info_include_unknown() {
+    auto accessor = makeIncludeTestAccessor();
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}, {"include", json::array({"unknown"})}});
+    assert(result["isError"] == true);
+
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("Unknown include value") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get_model_info include unknown value\n");
+}
+
 int main() {
     suppressWindowsDialogs();
     printf("Running model tool tests...\n");
@@ -184,6 +308,13 @@ int main() {
     test_get_model_info_null_accessor();
     test_get_model_info_no_bones();
     test_get_model_info_morph_source_unavailable();
+    test_get_model_info_file_modified();
+    test_get_model_info_file_modified_bones_only();
+    test_get_model_info_include_morphs_only();
+    test_get_model_info_include_bones_only();
+    test_get_model_info_include_empty();
+    test_get_model_info_include_both();
+    test_get_model_info_include_unknown();
 
     printf("All %d tests passed.\n", g_passed);
     return 0;

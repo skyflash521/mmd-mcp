@@ -1,5 +1,6 @@
 #include "tests/test_common_setup.h"
 #include "tests/mock_morph.h"
+#include "tests/mock_model.h"
 #include "tools/morph/morph_tool.h"
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -150,6 +151,206 @@ static void test_get_value_correctness() {
     ++g_passed; printf("  PASS: get value correctness\n");
 }
 
+// --- morph_name tests ---
+
+static void test_get_by_morph_name() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+    accessor.seed(0, 1, 10, 0.5f);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 3, 0, true}, {},
+        {{"blink", "", 2, 1}, {"smile", "", 3, 1}, {"angry", "", 4, 1}});
+
+    GetMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"morph_name", "smile"}, {"frames", "10"}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data["keyframes"].size() == 1);
+    assert(std::fabs(data["keyframes"][0]["value"].get<float>() - 0.5f) < 0.001f);
+
+    ++g_passed; printf("  PASS: get by morph_name\n");
+}
+
+static void test_get_by_morph_name_not_found() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 2);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 2, 0, true}, {},
+        {{"blink", "", 2, 1}, {"smile", "", 3, 1}});
+
+    GetMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"morph_name", "nonexistent"}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("not found") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get by morph_name not found\n");
+}
+
+static void test_get_both_index_and_name() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 1);
+    GetMorphKeyframesTool tool(&accessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"morph_index", 0}, {"morph_name", "smile"}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("not both") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get both index and name error\n");
+}
+
+// --- get_all_morph_keyframes ---
+
+static void test_get_all_morphs_basic() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+    accessor.seed(0, 0, 10, 0.5f);
+    accessor.seed(0, 1, 10, 0.0f);  // zero value
+    accessor.seed(0, 2, 10, 1.0f);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 3, 0, true}, {},
+        {{"blink", "", 2, 1}, {"smile", "", 3, 1}, {"angry", "", 4, 1}});
+
+    GetAllMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"frames", "10"}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    // morph 1 (smile) has value 0 → excluded by default
+    assert(data["morphs"].size() == 2);
+    assert(data["morphs"][0]["morph_index"] == 0);
+    assert(data["morphs"][0]["name_jp"] == "blink");
+    assert(data["morphs"][1]["morph_index"] == 2);
+    assert(data["morphs"][1]["name_jp"] == "angry");
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes basic\n");
+}
+
+static void test_get_all_morphs_include_zero() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 2);
+    accessor.seed(0, 0, 5, 0.5f);
+    accessor.seed(0, 1, 5, 0.0f);
+
+    GetAllMorphKeyframesTool tool(&accessor, nullptr);
+
+    auto result = tool.execute({{"model_index", 0}, {"frames", "5"}, {"include_zero", true}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data["morphs"].size() == 2);
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes include_zero\n");
+}
+
+static void test_get_all_morphs_no_keyframes_excluded() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+    accessor.seed(0, 0, 10, 0.5f);
+    // morph 1 and 2 have no keyframes at frame 10
+
+    GetAllMorphKeyframesTool tool(&accessor, nullptr);
+
+    auto result = tool.execute({{"model_index", 0}, {"frames", "10"}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data["morphs"].size() == 1);
+    assert(data["morphs"][0]["morph_index"] == 0);
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes no keyframes excluded\n");
+}
+
+static void test_get_all_morphs_model_not_found() {
+    MockMorphKeyframeAccessor accessor;
+    GetAllMorphKeyframesTool tool(&accessor, nullptr);
+
+    auto result = tool.execute({{"model_index", 99}});
+    assert(result["isError"] == true);
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes model not found\n");
+}
+
+static void test_get_neither_index_nor_name() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 1);
+    GetMorphKeyframesTool tool(&accessor);
+
+    auto result = tool.execute({{"model_index", 0}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("required") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get neither index nor name error\n");
+}
+
+// --- file_modified_after_launch ---
+
+static void test_get_morph_by_name_file_modified() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 3, 0, true}, {},
+        {{"blink", "", 2, 1}, {"smile", "", 3, 1}, {"angry", "", 4, 1}});
+    modelAccessor.setMorphsFileModified(0);
+
+    GetMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"morph_name", "smile"}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("modified after MMD was launched") != std::string::npos);
+    assert(msg.find("restart MMD") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get_morph_keyframes morph_name file modified\n");
+}
+
+static void test_get_morph_by_index_file_modified_ok() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 3);
+    accessor.seed(0, 1, 10, 0.5f);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 3, 0, true});
+    modelAccessor.setMorphsFileModified(0);
+
+    GetMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    // morph_index 指定の場合、PMXパース不要なのでエラーにならない
+    auto result = tool.execute({{"model_index", 0}, {"morph_index", 1}, {"frames", "10"}});
+    assert(result["isError"] == false);
+
+    ++g_passed; printf("  PASS: get_morph_keyframes morph_index file modified (no error)\n");
+}
+
+static void test_get_all_morphs_file_modified() {
+    MockMorphKeyframeAccessor accessor;
+    accessor.setMorphCount(0, 2);
+    accessor.seed(0, 0, 10, 0.5f);
+
+    MockModelAccessor modelAccessor;
+    modelAccessor.seed(0, {"Miku", "", "", "", 0, 2, 0, true});
+    modelAccessor.setMorphsFileModified(0);
+
+    GetAllMorphKeyframesTool tool(&accessor, &modelAccessor);
+
+    auto result = tool.execute({{"model_index", 0}, {"frames", "10"}});
+    assert(result["isError"] == true);
+    auto msg = result["content"][0]["text"].get<std::string>();
+    assert(msg.find("modified after MMD was launched") != std::string::npos);
+
+    ++g_passed; printf("  PASS: get_all_morph_keyframes file modified\n");
+}
+
 int main() {
     suppressWindowsDialogs();
     printf("Running morph tool tests...\n");
@@ -164,6 +365,17 @@ int main() {
     test_get_missing_model_index();
     test_get_missing_morph_index();
     test_get_value_correctness();
+    test_get_by_morph_name();
+    test_get_by_morph_name_not_found();
+    test_get_both_index_and_name();
+    test_get_neither_index_nor_name();
+    test_get_all_morphs_basic();
+    test_get_all_morphs_include_zero();
+    test_get_all_morphs_no_keyframes_excluded();
+    test_get_all_morphs_model_not_found();
+    test_get_morph_by_name_file_modified();
+    test_get_morph_by_index_file_modified_ok();
+    test_get_all_morphs_file_modified();
 
     printf("All %d morph tool tests passed.\n", g_passed);
     return 0;
