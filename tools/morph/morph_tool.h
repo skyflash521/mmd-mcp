@@ -30,11 +30,11 @@ public:
                 {"morph_index", {
                     {"type", "integer"},
                     {"minimum", 0},
-                    {"description", "Morph index (0 to morph_count-1)"}
+                    {"description", "Morph index (0 to morph_count-1). Specify either morph_index or morph_name."}
                 }},
                 {"morph_name", {
                     {"type", "string"},
-                    {"description", "Morph name in Japanese (exact match on name_jp)"}
+                    {"description", "Morph name in Japanese (exact match on name_jp). Specify either morph_index or morph_name."}
                 }},
                 {"frames", {
                     {"type", "string"},
@@ -43,10 +43,6 @@ public:
                 }}
             }},
             {"required", json::array({"model_index"})},
-            {"oneOf", json::array({
-                {{"required", json::array({"morph_index"})}},
-                {{"required", json::array({"morph_name"})}}
-            })},
             {"additionalProperties", false}
         };
     }
