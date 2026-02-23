@@ -2,13 +2,17 @@
 
 #include "tools/model/model_accessor.h"
 #include <map>
+#include <set>
 #include <vector>
 
 class MockModelAccessor : public IModelAccessor {
 public:
-    void seed(int index, const ModelInfo& info, const std::vector<BoneInfo>& bones = {}) {
+    void seed(int index, const ModelInfo& info,
+              const std::vector<BoneInfo>& bones = {},
+              const std::vector<MorphBasicInfo>& morphs = {}) {
         models_[index] = info;
         bones_[index] = bones;
+        morphs_[index] = morphs;
     }
 
     std::vector<std::pair<int, ModelInfo>> listModels() const override {
@@ -32,7 +36,18 @@ public:
         return it->second;
     }
 
+    void setMorphsFail(int index) { morphs_fail_.insert(index); }
+
+    std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
+        if (morphs_fail_.count(index)) return {false, {}};
+        auto it = morphs_.find(index);
+        if (it == morphs_.end()) return {true, {}};
+        return {true, it->second};
+    }
+
 private:
     std::map<int, ModelInfo> models_;
     std::map<int, std::vector<BoneInfo>> bones_;
+    std::map<int, std::vector<MorphBasicInfo>> morphs_;
+    std::set<int> morphs_fail_;
 };

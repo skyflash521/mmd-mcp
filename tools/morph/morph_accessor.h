@@ -66,10 +66,9 @@ public:
         if (morph_index < 0 || morph_index >= model->morph_count) return false;
         if (!model->morph_keyframe) return false;
 
-        auto* arr = reinterpret_cast<MorphKeyFrame*>(
-            &model->morph_keyframe[morph_index * mmd_mcp::MAX_MORPH_FRAMES]);
+        auto* arr = reinterpret_cast<MorphKeyFrame*>(model->morph_keyframe);
         mmd_mcp::forEachKeyframe<MorphKeyFrame, Traits>(
-            arr, mmd_mcp::MAX_MORPH_FRAMES, visitor);
+            arr, mmd_mcp::MAX_MORPH_FRAMES, visitor, morph_index);
         return true;
     }
 

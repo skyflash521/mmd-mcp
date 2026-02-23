@@ -12,16 +12,17 @@ namespace mmd_mcp {
 // 破損リンクによる配列外アクセスや無限ループを防止する。
 
 template<typename KF, typename Traits = KeyframeTraits<KF>>
-void forEachKeyframe(KF* arr, int maxCount, const std::function<void(const KF&)>& visitor) {
+void forEachKeyframe(KF* arr, int maxCount, const std::function<void(const KF&)>& visitor, int startIndex = 0) {
     if (!arr || maxCount <= 0) return;
-    int idx = 0;
+    if (startIndex < 0 || startIndex >= maxCount) return;
+    int idx = startIndex;
     int guard = 0;
     do {
         visitor(arr[idx]);
         idx = Traits::nextIndex(arr[idx]);
         if (idx < 0 || idx >= maxCount) break;
         if (++guard >= maxCount) break;
-    } while (idx != 0);
+    } while (idx != startIndex);
 }
 
 template<typename KF, typename Traits = KeyframeTraits<KF>>

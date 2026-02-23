@@ -61,7 +61,12 @@ static void test_get_model_info() {
     MockModelAccessor accessor;
     ModelInfo info{"Miku", "Miku_EN", "Test comment", "C:\\Models\\miku.pmx", 150, 30, 10, true};
     std::vector<BoneInfo> bones = {{"center", "center_en"}, {"upper", "upper_en"}};
-    accessor.seed(0, info, bones);
+    std::vector<MorphBasicInfo> morphs = {
+        {"blink", "blink_en", 2, 1},
+        {"smile", "smile_en", 3, 1},
+        {"body_red", "body_red_en", 4, 8}
+    };
+    accessor.seed(0, info, bones, morphs);
     GetModelInfoTool tool(&accessor);
 
     auto result = tool.execute({{"index", 0}});
@@ -81,6 +86,15 @@ static void test_get_model_info() {
     assert(data["bones"][0]["index"] == 0);
     assert(data["bones"][0]["name_jp"] == "center");
     assert(data["bones"][1]["name_jp"] == "upper");
+    assert(data["morphs"].size() == 3);
+    assert(data["morphs"][0]["index"] == 0);
+    assert(data["morphs"][0]["name_jp"] == "blink");
+    assert(data["morphs"][0]["panel"] == 2);
+    assert(data["morphs"][0]["type"] == 1);
+    assert(data["morphs"][1]["name_jp"] == "smile");
+    assert(data["morphs"][2]["name_jp"] == "body_red");
+    assert(data["morphs"][2]["type"] == 8);
+    assert(data["morph_source"] == "pmx");
 
     ++g_passed; printf("  PASS: get_model_info\n");
 }
@@ -134,8 +148,26 @@ static void test_get_model_info_no_bones() {
 
     auto data = json::parse(result["content"][0]["text"].get<std::string>());
     assert(data["bones"].empty());
+    assert(data["morphs"].empty());
+    assert(data["morph_source"] == "pmx");
 
     ++g_passed; printf("  PASS: get_model_info no bones\n");
+}
+
+static void test_get_model_info_morph_source_unavailable() {
+    MockModelAccessor accessor;
+    accessor.seed(0, {"Miku", "Miku_EN", "", "", 150, 30, 10, true});
+    accessor.setMorphsFail(0);
+    GetModelInfoTool tool(&accessor);
+
+    auto result = tool.execute({{"index", 0}});
+    assert(result["isError"] == false);
+
+    auto data = json::parse(result["content"][0]["text"].get<std::string>());
+    assert(data["morphs"].empty());
+    assert(data["morph_source"] == "unavailable");
+
+    ++g_passed; printf("  PASS: get_model_info morph_source unavailable\n");
 }
 
 int main() {
@@ -151,6 +183,7 @@ int main() {
     test_get_model_info_negative_index();
     test_get_model_info_null_accessor();
     test_get_model_info_no_bones();
+    test_get_model_info_morph_source_unavailable();
 
     printf("All %d tests passed.\n", g_passed);
     return 0;

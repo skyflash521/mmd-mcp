@@ -107,6 +107,18 @@ public:
             });
         }
 
+        auto [morphsOk, morphs] = accessor_->getMorphs(index);
+        json morphsArr = json::array();
+        for (int i = 0; i < static_cast<int>(morphs.size()); ++i) {
+            morphsArr.push_back({
+                {"index", i},
+                {"name_jp", morphs[i].name_jp},
+                {"name_en", morphs[i].name_en},
+                {"panel", morphs[i].panel},
+                {"type", morphs[i].type}
+            });
+        }
+
         json result = {
             {"index", index},
             {"name_jp", info.name_jp},
@@ -117,7 +129,9 @@ public:
             {"morph_count", info.morph_count},
             {"ik_count", info.ik_count},
             {"is_visible", info.is_visible},
-            {"bones", bonesArr}
+            {"bones", bonesArr},
+            {"morphs", morphsArr},
+            {"morph_source", morphsOk ? "pmx" : "unavailable"}
         };
 
         return {

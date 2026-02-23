@@ -20,6 +20,13 @@ struct BoneInfo {
     std::string name_en;
 };
 
+struct MorphBasicInfo {
+    std::string name_jp;
+    std::string name_en;
+    int panel = 0;  // 0:システム予約, 1:眉, 2:目, 3:口, 4:その他
+    int type = 0;   // 0:Group, 1:Vertex, 2:Bone, 3-7:UV, 8:Material, 9:Flip, 10:Impulse
+};
+
 class IModelAccessor {
 public:
     virtual ~IModelAccessor() = default;
@@ -32,11 +39,16 @@ public:
 
     // 指定インデックスのモデルのボーン名一覧を返す
     virtual std::vector<BoneInfo> getBones(int index) const = 0;
+
+    // 指定インデックスのモデルのモーフ一覧を返す（PMXファイルから取得）
+    // first: 取得成功したか, second: モーフ一覧
+    virtual std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const = 0;
 };
 
 #ifndef MMD_MCP_TEST
 #include "mmd_plugin.h"
 #include "common/encoding.h"
+#include "common/pmx_parser.h"
 
 class MmdModelAccessor : public IModelAccessor {
     static constexpr int MAX_MODELS = 255;
@@ -94,6 +106,24 @@ public:
             result.push_back({mmdToUtf8(bone.name_jp), mmdToUtf8(bone.name_en)});
         }
         return result;
+    }
+
+    std::pair<bool, std::vector<MorphBasicInfo>> getMorphs(int index) const override {
+        std::vector<MorphBasicInfo> result;
+        if (index < 0 || index >= MAX_MODELS) return {false, result};
+        auto* data = mmp::getMMDMainData();
+        if (!data) return {false, result};
+        auto* model = data->model_data[index];
+        if (!model) return {false, result};
+
+        auto pmxInfo = pmx::parse(model->file_path);
+        if (!pmxInfo.valid) return {false, result};
+
+        result.reserve(pmxInfo.morphs.size());
+        for (auto& m : pmxInfo.morphs) {
+            result.push_back({std::move(m.name_jp), std::move(m.name_en), m.panel, m.type});
+        }
+        return {true, std::move(result)};
     }
 
 private:
